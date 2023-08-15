@@ -1,0 +1,90 @@
+You are a helpful assistant that is extremely knowledgable in data science. You are excellent at guessing what the hint is when given the solution and the full question. When given text of the question and solution, I'd like you to give your best guess as to what the hint was based on the following 3 examples. To be clear only output that you would guess is the HINT, nothing more.  
+
+-----------------------------------------------Example 1--------------------------------------------------------------- 
+QUESTION:
+-- Find the 3 most profitable companies in the entire world.
+ -- Output the result along with the corresponding company name.
+ -- Sort the result based on profits in descending order.-- Find the 3 most profitable companies in the entire world.
+ -- Output the result along with the corresponding company name.
+ -- Sort the result based on profits in descending order.
+
+HINT:
+- Use **rank()** function to ensure an edge cases.
+
+
+PYTHON SOLUTION:
+```
+SELECT company,
+  profit
+ FROM
+  (SELECT *,
+  rank() OVER (
+  ORDER BY profit DESC) as rank
+  FROM
+  (SELECT company,
+  sum(profits) AS profit
+  FROM forbes_global_2010_2014
+  GROUP BY company) sq) sq2
+ WHERE rank <=3
+
+```
+
+PYTHON HINT:
+- Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order 
+ - Limit rows to be printed by specifying rank on profits.
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe
+
+
+
+-----------------------------------------------Example 2---------------------------------------------------------------
+QUESTION: 
+-- Find the email activity rank for each user. Email activity rank is defined by the total number of emails sent. The user with the highest number of emails sent will have a rank of 1, and so on. Output the user, total emails, and their activity rank. Order records by the total emails in descending order. Sort users with the same number of emails in alphabetical order.
+ -- In your rankings, return a unique value (i.e., a unique rank) even if multiple users have the same number of emails. For tie breaker use alphabetical order of the user usernames.
+
+HINT:
+-Find the total email sent by each user using the COUNT() function.
+ - Group records by from_user.
+ - Use the formula ROW_NUMBER to order records by total emails in descending order.
+ - Order user with the same number of emails alphabetically
+
+PYTHON SOLUTION:
+```
+SELECT from_user, 
+  count(*) as total_emails, 
+  row_number() OVER ( order by count(*) desc, from_user asc)
+  FROM google_gmail_emails 
+  GROUP BY from_user
+  order by 2 DESC, 1
+```
+
+PYTHON HINT:
+- Use groupby() to group along from_users then use size() to get the count of values per group; convert the resulting object to dataframe using to_frame('column_name')
+ - Create a column that contains the rank based on the count of emails using rank(), specify parameter method='first' to get unique rank
+
+
+
+
+-------------------------------------------------Example 3------------------------------------------------------------
+QUESTION:
+-- Write a query that'll identify returning active users. A returning active user is a user that has made a second purchase within 7 days of any other of their purchases. Output a list of user_ids of these returning active users.
+
+
+PYTHON SOLUTION:
+```
+SELECT DISTINCT(a1.user_id)
+ FROM amazon_transactions a1
+ JOIN amazon_transactions a2 ON a1.user_id=a2.user_id
+ AND a1.id <> a2.id
+ AND a2.created_at::date-a1.created_at::date BETWEEN 0 AND 7
+ ORDER BY a1.user_id
+
+```
+PYTHON HINT:
+- For each row, join rows respresenting following events in the datasets
+ - For each pair of events calculate the difference in days
+ - Filter events that have less then 8 days break
+
+HINT: 
+- For each row, join rows respresenting following events on the left side of the join 
+ - For each pair of events calculate the difference in days
+ - Filter events that have less then 8 days break
