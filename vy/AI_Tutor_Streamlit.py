@@ -150,6 +150,7 @@ def respond_to_query(input_text, dropdown_selection, request_type, further_clari
         else:
             return f"The question doesn't seem to be related to Python programming. Please provide a more specific Python-related question or choose from the provided options."
 
+# App
 def main():
     st.title('AI Tutor')
 
