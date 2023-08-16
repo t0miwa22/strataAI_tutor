@@ -8,7 +8,7 @@ warnings.filterwarnings("ignore")
 import streamlit as st
 openai.api_key = os.environ.get('API_KEY')
 
-data = pd.read_excel(r'C:\Users\Vy\Documents\lonely_octopus\freelance_projects\ai_tutor\AI-tutor\vy\final_updated_cleaned_SS_questions.xlsx')
+data = pd.read_excel(r'final_updated_cleaned_SS_questions.xlsx')
 
 
 # Function to interact with OpenAI's GPT using chat models
