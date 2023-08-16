@@ -42,8 +42,6 @@ def get_initial_response(query, request_type, known_question_data=None):
         return "Sorry, edge cases are not explicitly mentioned in the dataset. Would you like to get potential edge cases based on the problem?"
     elif request_type == "Explain Solution":
         return known_question_data['python_solution']
-    elif request_type == "Get Hint":
-        return known_question_data['python_hint']
     else:
         return "Unknown request."
 
@@ -63,9 +61,7 @@ def custom_query_response(query, request_type, known_question_data=None):
         elif request_type == "Explain Solution":
             prompt = (f"Please provide a more detailed explanation for the solution of the problem. Provide full code function for the solution. Please put some comments in the code for clarification.: "
                       f"{known_question_data['question']}. Solution: {known_question_data['python_solution']}.")
-        elif request_type == "Get Hint":
-            prompt = (f"Can you expand on the hint for the following problem. Provide steps of hints and include an example of code in each step: "
-                      f"{known_question_data['question']}? Hint: {known_question_data['python_hint']}.")
+    
     
     # If no data is found, handle general queries
     if not prompt:  # If the prompt hasn't been set yet
@@ -75,8 +71,6 @@ def custom_query_response(query, request_type, known_question_data=None):
             prompt = f"What are potential edge cases for the general programming problem: {query}?"
         elif request_type == "Explain Solution":
             prompt = f"Provide a detailed explanation for the general programming problem: {query}"
-        elif request_type == "Get Hint":
-            prompt = f"Provide a hint for the general programming problem: {query}"
         else:
             prompt = f"Can you provide assistance for the general programming problem or topic: {query}?"
 
@@ -156,13 +150,14 @@ def respond_to_query(input_text, dropdown_selection, request_type, further_clari
         else:
             return f"The question doesn't seem to be related to Python programming. Please provide a more specific Python-related question or choose from the provided options."
 
+# App
 def main():
     st.title('AI Tutor')
 
     # Streamlit interface setup
-    user_input = st.text_input("Type your question or", "Type your question or select from the dropdown.")
+    user_input = st.text_input("Type Your Question", "Type your question or select from the dropdown.")
     dropdown_selection = st.selectbox("Or Select a Question", ["Select from common questions"] + data['question'].tolist())
-    request_type = st.radio("Request Type", ["Get Walkthrough", "Show Edge Cases", "Explain Solution", "Get Hint"])
+    request_type = st.radio("Request Type", ["Get Walkthrough", "Show Edge Cases", "Explain Solution"])
     further_clarification = st.checkbox("Seek further clarification?")
     
     # Setup for multiple buttons
