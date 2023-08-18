@@ -1,0 +1,2656 @@
+question_short,question,difficulty,hint,solution,python_difficulty,python_output_type,python_hint,python_solution
+Most Profitable Companies,"-- Find the 3 most profitable companies in the entire world.
+ -- Output the result along with the corresponding company name.
+ -- Sort the result based on profits in descending order.",2,- Use **rank()** function to ensure an edge cases.,"SELECT company,
+  profit
+ FROM
+  (SELECT *,
+  rank() OVER (
+  ORDER BY profit DESC) as rank
+  FROM
+  (SELECT company,
+  sum(profits) AS profit
+  FROM forbes_global_2010_2014
+  GROUP BY company) sq) sq2
+ WHERE rank <=3",2,pandas.DataFrame,"- Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order 
+ - Limit rows to be printed by specifying rank on profits.
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe","def solution(forbes_global_2010_2014):
+  import pandas as pd
+  import numpy as np
+ 
+  result = forbes_global_2010_2014.groupby('company')['profits'].sum(
+  ).reset_index().sort_values(by='profits', ascending=False)
+  result['rank'] = result['profits'].rank(method='min', ascending=False)
+  result = result[result['rank'] <= 3][['company', 'profits']]
+ 
+  return result"
+Workers With The Highest Salaries,,2,"- Filter worker salaries to the highest salary by using an aggregate function that returns the maximum value.
+ - Combine the tables to output worker title(s) based on the result of the maximum value.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **First position tie:** Your solution should account for the possibility that two or more employees have the same salary.","SELECT *
+ FROM
+  (SELECT CASE
+  WHEN salary =
+  (SELECT max(salary)
+  FROM worker) THEN worker_title
+  END AS best_paid_title
+  FROM worker a
+  INNER JOIN title b ON b.worker_ref_id=a.worker_id
+  ORDER BY best_paid_title) sq
+ WHERE best_paid_title IS NOT NULL",1,pandas.DataFrame,"- Filter worker salaries to the highest salary by using an aggregate function that returns the maximum value.
+ - Combine the tables to output worker title(s) based on the result of the maximum value.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **First position tie:** Your solution should account for the possibility that two or more employees have the same salary.","def solution(worker, title):
+ 
+  import pandas as pd
+  import numpy as np
+ 
+  title_worker_id = title.rename(columns={""worker_ref_id"": ""worker_id""})
+  merged_df = pd.merge(worker, title_worker_id, on=""worker_id"")
+  max_salary = merged_df[merged_df[""salary""] == merged_df[""salary""].max()][
+  [""worker_title""]
+  ].rename(columns={""worker_title"": ""best_paid_title""})
+  result = max_salary
+ 
+  return result"
+Users By Average Session Time,"-- Calculate each user's average session time. A session is defined as the time difference between a page_load and page_exit. For simplicity, assume a user has only 1 session per day and if there are multiple of the same events on that day, consider only the latest page_load and earliest page_exit, with an obvious restriction that load time event should happen before exit time event . Output the user_id and their average session time.",2,,"with all_user_sessions as (
+  SELECT t1.user_id, t1.timestamp::date as date,
+  min(t2.timestamp::TIMESTAMP) - max(t1.timestamp::TIMESTAMP) as session_duration
+  FROM facebook_web_log t1
+  JOIN facebook_web_log t2 ON t1.user_id = t2.user_id
+  WHERE t1.action = 'page_load' 
+  AND t2.action = 'page_exit' 
+  AND t2.timestamp > t1.timestamp
+  GROUP BY 1, 2) 
+ SELECT user_id, avg(session_duration)
+ FROM all_user_sessions
+ GROUP BY user_id",2,pandas.DataFrame,,"def solution(facebook_web_log):
+  import pandas as pd 
+  import datetime as dt
+  import numpy as np
+ 
+  df = pd.merge(facebook_web_log.loc[facebook_web_log['action'] == 'page_load', ['user_id', 'timestamp']],
+  facebook_web_log.loc[facebook_web_log['action'] == 'page_exit', ['user_id', 'timestamp']],
+  how='left', on='user_id', suffixes=['_load', '_exit']).dropna()
+ 
+ 
+  df['date_load'] = pd.to_datetime(df['timestamp_load']).dt.date
+  df = df[df['timestamp_load'] < df['timestamp_exit']]
+  df = df.groupby(['user_id', 'date_load']).agg({'timestamp_load': 'max', 'timestamp_exit': 'min'}).reset_index()
+ 
+  df['duration'] = df['timestamp_exit'] - df['timestamp_load']
+  df = df[df['duration'] > '0 days']
+  result = df.groupby('user_id')['duration'].agg(lambda x: np.mean(x)).reset_index()
+ 
+  return result"
+Activity Rank,"-- Find the email activity rank for each user. Email activity rank is defined by the total number of emails sent. The user with the highest number of emails sent will have a rank of 1, and so on. Output the user, total emails, and their activity rank. Order records by the total emails in descending order. Sort users with the same number of emails in alphabetical order.
+ -- In your rankings, return a unique value (i.e., a unique rank) even if multiple users have the same number of emails. For tie breaker use alphabetical order of the user usernames.",2,"-Find the total email sent by each user using the COUNT() function.
+ - Group records by from_user.
+ - Use the formula ROW_NUMBER to order records by total emails in descending order.
+ - Order user with the same number of emails alphabetically","SELECT from_user, 
+  count(*) as total_emails, 
+  row_number() OVER ( order by count(*) desc, from_user asc)
+  FROM google_gmail_emails 
+  GROUP BY from_user
+  order by 2 DESC, 1",2,pandas.DataFrame,"- Use groupby() to group along from_users then use size() to get the count of values per group; convert the resulting object to dataframe using to_frame('column_name')
+ - Create a column that contains the rank based on the count of emails using rank(), specify parameter method='first' to get unique rank","def solution(google_gmail_emails):
+  import pandas as pd
+  import numpy as np
+ 
+  result = google_gmail_emails.groupby(
+  ['from_user']).size().to_frame('total_emails').reset_index()
+  result['rank'] = result['total_emails'].rank(method='first', ascending=False)
+  result = result.sort_values(by=['total_emails', 'from_user'], ascending=[False, True])
+ 
+  return result"
+Algorithm Performance,"-- Meta/Facebook is developing a search algorithm that will allow users to search through their post history. You have been assigned to evaluate the performance of this algorithm.
+ 
+ We have a table with the user's search term, search result positions, and whether or not the user clicked on the search result.
+ 
+ Write a query that assigns ratings to the searches in the following way:
+ â€¢ If the search was not clicked for any term, assign the search with rating=1
+ â€¢ If the search was clicked but the top position of clicked terms was outside the top 3 positions, assign the search a rating=2
+ â€¢ If the search was clicked and the top position of a clicked term was in the top 3 positions, assign the search a rating=3
+ 
+ As a search ID can contain more than one search term, select the highest rating for that search ID. Output the search ID and its highest rating.
+ 
+ *Example:* The search_id 1 was clicked (clicked = 1) and its position is outside of the top 3 positions (search_results_position = 5), therefore its rating is 2.",3,"- The 'position' column is the search result position of the specific comment 
+ - To evaluate the performance of the search algorithm, you'll need to rate each search result position. 
+ - When the 'position' is between 1 and 3 and the user has clicked on the search result, algorithm performed well. Give a rating of 3.
+ - When the 'position' has only clicked search results above the position 3, algorithm performed moderate. Give it a rating of 2.
+ - When the user has not clicked on the any search result, algorithm performed poorly. Give it a rating of 1.
+ - Use the MAX function to get the highest rating for every search ID.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Many entries:** A search ID can have more than one result for search position and result for clicked","WITH cte AS
+  (SELECT search_id,
+  unnest(array[one, two, three]) AS rating
+  FROM
+  (SELECT search_id,
+  CASE
+  WHEN clicked = 0 THEN 1
+  ELSE 0
+  END AS one,
+  CASE
+  WHEN clicked = 1
+  AND search_results_position > 3 THEN 2
+  ELSE 0
+  END AS two,
+  CASE
+  WHEN clicked = 1
+  AND search_results_position <= 3 THEN 3
+  ELSE 0
+  END AS three
+  FROM fb_search_events) a)
+ SELECT search_id,
+  MAX(rating) AS max_rating
+ FROM cte
+ GROUP BY 1",3,pandas.DataFrame,"- The 'position' column is the search result position of the specific comment 
+ - To evaluate the performance of the search algorithm, you'll need to rate each search result position. 
+ - When the 'position' is between 1 and 3 and the user has clicked on the search result, algorithm performed well. Give a rating of 3.
+ - When the 'position' has only clicked search results above the position 3, algorithm performed moderate. Give it a rating of 2.
+ - When the user has not clicked on the any search result, algorithm performed poorly. Give it a rating of 1
+ - Use the .max() function to get the highest rating for every search ID.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Many entries:** A search ID can have more than one result for search position and result for clicked","def solution(fb_search_events):
+  import pandas as pd
+  import numpy as np
+ 
+  fb_search_events['ratings'] = 1
+  fb_search_events.loc[(fb_search_events['search_results_position'] > 3) & (fb_search_events['clicked'] == 1), 'ratings'] = 2
+  fb_search_events.loc[(fb_search_events['search_results_position'].between(0, 3)) & (fb_search_events['clicked'] == 1), 'ratings'] = 3 
+ 
+  fb_search_events = fb_search_events[['search_id', 'ratings']]
+  result = fb_search_events.groupby('search_id')['ratings'].max().reset_index()
+  return result"
+Distances Traveled,"-- Find the top 10 users that have traveled the greatest distance. Output their id, name and a total distance traveled.",2,"- JOIN lyft_users and lyft_rides_log table using an INNER JOIN
+ - sum() distances per user to get total traveled distance for each user
+ - GROUP BY name column
+ - Use a rank window function to catch any ties. There are multiple approach to catch ties so you don't have to use a window function to achieve the same output.","SELECT user_id,
+  name,
+  traveled_distance
+ FROM
+  (SELECT lr.user_id,
+  lu.name,
+  SUM(lr.distance) AS traveled_distance,
+  rank () OVER (
+  ORDER BY SUM(lr.distance) DESC) AS rank
+  FROM lyft_users AS lu
+  INNER JOIN lyft_rides_log AS lr ON lu.id = lr.user_id
+  GROUP BY lr.user_id,
+  lu.name
+  ORDER BY traveled_distance DESC) sq
+ WHERE rank <= 10",2,pandas.DataFrame,"- Merge lyft_users and lyft_rides_log tables to get all the information using an inner merge
+ - Group by user_id to count total distance traveled by each user
+ - Sum distances per user to get total traveled distance for each user
+ - Sort the Dataframe by distance in descending order and select only top 10 rows by distance travelled
+ - Return a dataframe with 2 columns (user_id, distance)","def solution(lyft_users, lyft_rides_log):
+  import pandas as pd
+  import numpy as np
+ 
+  df = pd.merge(lyft_users, lyft_rides_log, left_on='id', right_on='user_id')
+  result = df.groupby(['user_id', 'name'])['distance'].sum().to_frame().sort_values(by = 'distance', ascending = False).reset_index()
+  result['rank'] = result['distance'].rank(ascending = False)
+  result[result['rank']<=10][['user_id', 'name', 'distance']]
+  return result"
+Finding User Purchases,-- Write a query that'll identify returning active users. A returning active user is a user that has made a second purchase within 7 days of any other of their purchases. Output a list of user_ids of these returning active users.,2,"- For each row, join rows respresenting following events on the left side of the join 
+ - For each pair of events calculate the difference in days
+ - Filter events that have less then 8 days break","SELECT DISTINCT(a1.user_id)
+ FROM amazon_transactions a1
+ JOIN amazon_transactions a2 ON a1.user_id=a2.user_id
+ AND a1.id <> a2.id
+ AND a2.created_at::date-a1.created_at::date BETWEEN 0 AND 7
+ ORDER BY a1.user_id",2,pandas.DataFrame,"- For each row, join rows respresenting following events in the datasets
+ - For each pair of events calculate the difference in days
+ - Filter events that have less then 8 days break","def solution(amazon_transactions):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+ 
+  amazon_transactions[""created_at""] = pd.to_datetime(amazon_transactions[""created_at""]).dt.strftime('%m-%d-%Y')
+  df = amazon_transactions.sort_values(by=['user_id', 'created_at'], ascending=[True, True])
+  df['prev_value'] = df.groupby('user_id')['created_at'].shift()
+  df['days'] = (pd.to_datetime(df['created_at']) - pd.to_datetime(df['prev_value'])).dt.days
+  result = df[df['days'] <= 7]['user_id'].unique()
+ 
+  return result"
+Monthly Percentage Difference,"-- Given a table of purchases by date, calculate the month-over-month percentage change in revenue. The output should include the year-month date (YYYY-MM) and percentage change, rounded to the 2nd decimal point, and sorted from the beginning of the year to the end of the year.
+ -- The percentage change column will be populated from the 2nd month forward and can be calculated as ((this month's revenue - last month's revenue) / last month's revenue)*100.",3,"- Extract year-month using the to_char() function and create a new column as with the year-month
+ - Use the lag() function to get the previous month's revenue value then calculate the revenue difference between the current month and the previous month
+ - Aggregate monthly revenue using GROUP BY and sum()
+ - Calculate the difference in month-over-month revenue and use the round() function to round the revenue numbers to 2 decimal spots
+ - Use a window function to perform the calculation on selected rows. You can define the window function in the GROUP BY clause and implement it in the revenue difference calculation in the SELECT clause.
+ - Sort by date in ascending order","SELECT to_char(created_at::date, 'YYYY-MM') AS year_month,
+  round(((sum(value) - lag(sum(value), 1) OVER w) / (lag(sum(value), 1) OVER w)) * 100, 2) AS revenue_diff_pct
+ FROM sf_transactions
+ GROUP BY year_month 
+ WINDOW w AS (
+  ORDER BY to_char(created_at::date, 'YYYY-MM'))
+ ORDER BY year_month ASC",3,pandas.DataFrame,"- Make sure 'created_at' date is in datetime format
+ - Derive a 'year_month' column from 'created_at'
+ - Sort values in ascending order by date
+ - Use the shift() function to get the previous month's revenue value then calculate the revenue difference between the current month and the previous month
+ - Calculate the difference in month-over-month revenue 
+ - Calculate percentage growth month-over-month revenue
+ - Replace first row's NaN values to blank using fillna()","def solution(sf_transactions):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+  pd.options.display.float_format = ""{:,.2f}"".format
+ 
+  sf_transactions['created_at'] = sf_transactions['created_at'].apply(pd.to_datetime)
+  sf_transactions['year_month'] = pd.to_datetime(sf_transactions['created_at']).dt.to_period('M')
+  df = sf_transactions.groupby('year_month')['value'].sum().reset_index(name='monthly_revenue').sort_values('year_month')
+  df['prev_value'] = df['monthly_revenue'].shift(1)
+  df['revenue_diff_pct'] = round(((df['monthly_revenue'] - df['prev_value'])/df['prev_value'])*100, 2)
+  result = df[['year_month','revenue_diff_pct']].fillna('')
+  return result"
+New Products,-- You are given a table of product launches by company by year. Write a query to count the net difference between the number of products companies launched in 2020 with the number of products companies launched in the previous year. Output the name of the companies and a net difference of net products released for 2020 compared to the previous year.,2,"- Write 2 queries where you're filtering the table for new launches by 2020 and 2019
+ - OUTER JOIN the 2 queries as subqueries using the company_name as the key
+ - List the comapny name as the output","SELECT a.company_name,
+  (count(DISTINCT a.brand_2020)-count(DISTINCT b.brand_2019)) net_products
+ FROM
+  (SELECT company_name,
+  product_name AS brand_2020
+  FROM car_launches
+  WHERE YEAR = 2020) a
+ FULL OUTER JOIN
+  (SELECT company_name,
+  product_name AS brand_2019
+  FROM car_launches
+  WHERE YEAR = 2019) b ON a.company_name = b.company_name
+ GROUP BY a.company_name
+ ORDER BY company_name",2,pandas.DataFrame,"- Create 2 data frames where you're filtering the table for launches by 2020 and 2019
+ - Calculate distinct model launches in 2020 with 2029 using groupby and nunique and save the output in new data frames respectively
+ - OUTER JOIN 2020 grouped data frame with 2019 data frame
+ - Derive a new variable with difference in distinct launch count in 2 consecutive years
+ - Filter out all the company name where this difference greater than 0
+ - Output should be company name sorted in ascending order","def solution(car_launches):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+ 
+  df_2020 = car_launches[car_launches['year'].astype(str) == '2020']
+  df_2019 = car_launches[car_launches['year'].astype(str) == '2019']
+  df = pd.merge(df_2020, df_2019, how='outer', on=[
+  'company_name'], suffixes=['_2020', '_2019']).fillna(0)
+  df = df[df['product_name_2020'] != df['product_name_2019']]
+  df = df.groupby(['company_name']).agg(
+  {'product_name_2020': 'nunique', 'product_name_2019': 'nunique'}).reset_index()
+  df['net_new_products'] = df['product_name_2020'] - df['product_name_2019']
+  result = df[['company_name', 'net_new_products']]
+ 
+  return result"
+Cities With The Most Expensive Homes,,2,,"SELECT city
+ FROM zillow_transactions a
+ GROUP BY city
+ HAVING avg(a.mkt_price) >
+  (SELECT avg(mkt_price)
+  FROM zillow_transactions)
+ ORDER BY city ASC",2,pandas.DataFrame,,"def solution(zillow_transactions):
+  import pandas as pd
+  import numpy as np
+ 
+  df_city = zillow_transactions.groupby('city')['mkt_price'].mean().reset_index(name='avg_price_by_city')
+  df_avg_price = np.mean(zillow_transactions['mkt_price'])
+  df1 = df_city[df_city['avg_price_by_city']> df_avg_price].sort_values('city').sort_values('city')
+  result = df1['city']
+  return result"
+Revenue Over Time,"-- Find the 3-month rolling average of total revenue from purchases given a table with users, their purchase amount, and date purchased. Do not include returns which are represented by negative purchase values. Output the year-month (YYYY-MM) and 3-month rolling average of revenue, sorted from earliest month to latest month.
+ 
+ -- A 3-month rolling average is defined by calculating the average total revenue from all user purchases for the current month and previous two months. The first two months will not be a true 3-month rolling average since we are not given data from last year. Assume each month has at least one purchase.",3,"- Aggregate total revenue for each month by adding all positive values (ignore negative values), output should be month (YYYY-MM) and total revenue and sort by date in ascending order using ORDER BY
+ - Use a window frame of 3 months -- the current month and the previous 2 months as ROWS BETWEEN 2 PRECEDING AND CURRENT ROW -- and using an OVER() function
+ - Use an AVG() function to calculate average revenue over the defined window frame","SELECT t.month,
+  AVG(t.monthly_revenue) OVER(
+  ORDER BY t.month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_revenue
+ FROM
+  (SELECT to_char(created_at::date, 'YYYY-MM') AS MONTH,
+  sum(purchase_amt) AS monthly_revenue
+  FROM amazon_purchases
+  WHERE purchase_amt>0
+  GROUP BY to_char(created_at::date, 'YYYY-MM')
+  ORDER BY to_char(created_at::date, 'YYYY-MM')) t
+ ORDER BY t.month ASC",3,pandas.DataFrame,"- Subset the data frame for only positive purchase_amt
+ - Create a derived variable year_month (YYYY-MM)
+ - Aggregate purchase amount as monthly total using groupby() function, output should be month and total purchase amount and sort values by month in ascending order using sort_values()
+ - Use a window frame of 3 months -- the current month and the previous 2 months using rolling function, min_periods 1 means 1st and second row will have average of 1 an d2 values respectively. Row 3 onwards, values are average of 3 values.
+ - Use a mean() function to calculate average purchase amount over the defined window frame","def solution(amazon_purchases):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+  pd.options.display.float_format = ""{:,.2f}"".format
+ 
+  df=amazon_purchases[amazon_purchases['purchase_amt']>0]
+  df['month_year'] = pd.to_datetime(df['created_at']).dt.to_period('M')
+  df1 = df.groupby('month_year')['purchase_amt'].sum().reset_index(name='monthly_revenue').sort_values('month_year')
+  df1.set_index('month_year', inplace=True)
+  rolling_windows = df1.rolling(3, min_periods=1)
+  rolling_mean = rolling_windows.mean()
+  result=rolling_mean.to_records()
+  return result"
+Naive Forecasting,"-- Some forecasting methods are extremely simple and surprisingly effective. NaÃ¯ve forecast is one of them; we simply set all forecasts to be the value of the last observation. Our goal is to develop a naÃ¯ve forecast for a new metric called ""distance per dollar"" defined as the (distance_to_travel/monetary_cost) in our dataset and measure its accuracy.
+ 
+ -- To develop this forecast, sum ""distance to travel"" and ""monetary cost"" values at a monthly level before calculating ""distance per dollar"". This value becomes your actual value for the current month. The next step is to populate the forecasted value for each month. This can be achieved simply by getting the previous month's value in a separate column. Now, we have actual and forecasted values. This is your naÃ¯ve forecast. Letâ€™s evaluate our model by calculating an error matrix called root mean squared error (RMSE). RMSE is defined as sqrt(mean(square(actual - forecast)). Report out the RMSE rounded to the 2nd decimal spot.",3,"- extract the month from the request_date column
+ - aggregate the data by month
+ - divide the sum of distance_to_travel by the sum of monetary_cost, both per month, to get monthly distance per dollar
+ - use a LAG function to create a column with the distance per dollar from the previous month
+ - aggregate the data by the month, distance per dollar and the distance per dollar from the previous month
+ - use a POWER function to raise the difference between the distance per dollar from the previous month and the distance per dollar to the second power
+ - take the average of the calculated values and take the square root of this average
+ - output the number rounded to 2 decimal places","WITH avg_monthly_dist_per_dollar AS
+  (SELECT to_char(request_date::date, 'YYYY-MM') AS request_mnth,
+  sum(distance_to_travel)/sum(monetary_cost) monthly_dist_per_dollar
+  FROM uber_request_logs
+  GROUP BY request_mnth
+  ORDER BY request_mnth),
+  naive_forecast AS
+  (SELECT request_mnth,
+  monthly_dist_per_dollar,
+  lag(monthly_dist_per_dollar, 1) OVER (
+  ORDER BY request_mnth) previous_mnth_dist_per_dollar
+  FROM avg_monthly_dist_per_dollar),
+  power AS
+  (SELECT request_mnth,
+  monthly_dist_per_dollar,
+  previous_mnth_dist_per_dollar,
+  POWER(previous_mnth_dist_per_dollar - monthly_dist_per_dollar, 2) AS power
+  FROM naive_forecast
+  GROUP BY request_mnth,
+  monthly_dist_per_dollar,
+  previous_mnth_dist_per_dollar
+  ORDER BY request_mnth)
+ SELECT round(sqrt(avg(power))::DECIMAL ,2) as rmse
+ FROM power",3,pandas.Series,,"def solution(fb_users, fb_comments):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+ 
+  uber_request_logs['month_year'] = pd.to_datetime(uber_request_logs['request_date']).dt.to_period('M')
+  avg_monthly_dist_per_dollar = uber_request_logs.groupby('month_year')[
+  'distance_to_travel', 'monetary_cost'].sum().reset_index()
+  avg_monthly_dist_per_dollar['monthly_dist_per_dollar'] = avg_monthly_dist_per_dollar['distance_to_travel'] / avg_monthly_dist_per_dollar['monetary_cost']
+  avg_monthly_dist_per_dollar['naive_forecast'] = avg_monthly_dist_per_dollar['monthly_dist_per_dollar'].shift(1)
+  df = avg_monthly_dist_per_dollar.loc[1:, ]
+  df['error'] = np.square(df['monthly_dist_per_dollar'] - df['naive_forecast'])
+  result = round(np.sqrt(np.mean(df['error'])), 2)
+ 
+  return result"
+Class Performance,"-- You are given a table containing assignment scores of students in a class. Write a query that identifies the largest difference in total score of all assignments.
+ -- Output just the difference in total score (sum of all 3 assignments) between a student with the highest score and a student with the lowest score.",2,,"SELECT max(score)-min(score) AS difference_in_scores
+ FROM
+  (SELECT student,
+  sum(assignment1+assignment2+assignment3) AS score
+  FROM box_scores
+  GROUP BY student) a",1,pandas.DataFrame,,"def solution(box_scores):
+  import pandas as pd
+  import numpy as np
+ 
+  box_scores['total_score'] = box_scores['assignment1']+box_scores['assignment2']+box_scores['assignment3']
+  box_scores['total_score'].max() - box_scores['total_score'].min()
+ 
+  return result"
+Marketing Campaign Success [Intermediate],"-- You have a table of in-app purchases by user. Users that make their first in-app purchase are placed in a marketing campaign where they see call-to-actions for more in-app purchases. Find the number of users that made additional in-app purchases due to the success of the marketing campaign.
+ 
+ -- The marketing campaign doesn't start until one day after the initial in-app purchase. On the day of the initial purchase, all items in the checkout are considered the purchase ""basket"". We do not count users that make the same purchase ""basket"" over time. 
+ - Scenario 1: A user that purchases product ID 1 on day 1 and then purchases product ID 2 on day 3 is eligible for the marketing campaign since the ""baskets"" are not identical.
+ - Scenario 2: A user that purchase product ID 1 and 2 on day 1 and then purchase product ID 1 and 2 on day 3 is not eligible for the marketing campaign because the ""baskets"" are identical. 
+  - Scenario 3: A user that purchase product ID 1 and 2 on day 1 and then purchase only product ID 2 on day 3 is eligible for the marketing campaign since the ""baskets"" are not identical. 
+ 
+ -- For a more complex version of this question, go here (https://platform.stratascratch.com/coding-question?id=514)",2,"- Count the distinct dates and distinct products by user_id using groupby. This will give you the number of products purchased by the user and the number of different dates.
+ - Apply a filter to the above view so that you're only counting users that were part of the marketing campaign (i.e., remove users that only purchased one product or one date).
+ - Count the users.","SELECT count(DISTINCT user_id) AS user_count
+ FROM
+  (SELECT user_id,
+  count(DISTINCT created_at) AS purchased_dates,
+  count(DISTINCT product_id) AS products_purchased
+  FROM marketing_campaign
+  GROUP BY user_id) a
+ WHERE purchased_dates > 1
+  AND products_purchased > 1",2,pandas.DataFrame,"- Count the distinct dates and distinct products by user_id using groupby. This will give you the number of products purchased by the user and the number of different dates.
+ - Apply a filter to the above view so that you're only counting users that were part of the marketing campaign (i.e., remove users that only purchased one product or one date).
+ - Count the users.","def solution(marketing_campaign):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+ 
+  df1=marketing_campaign.groupby('user_id')['created_at','product_id'].nunique().add_prefix('cnt_').reset_index()
+  df2=df1[(df1[""cnt_created_at""]>1) & (df1[""cnt_product_id""]>1)] 
+  result = df2['user_id'].nunique()
+  result"
+Salaries Differences,,1,,"SELECT
+  ABS((SELECT max(salary)
+  FROM db_employee emp
+  JOIN db_dept dept ON emp.department_id = dept.id
+  WHERE department = 'marketing') -
+  (SELECT max(salary)
+  FROM db_employee emp
+  JOIN db_dept dept ON emp.department_id = dept.id
+  WHERE department = 'engineering')) AS salary_difference",1,pandas.DataFrame,,"def solution(db_employee,db_dept):
+  import pandas as pd
+  import numpy as np
+ 
+  df = pd.merge(db_employee, db_dept, how = 'left',left_on = ['department_id'], right_on=['id'])
+  df1=df[df[""department""]=='engineering']
+  df_eng = df1.groupby('department')['salary'].max().reset_index(name='eng_salary')
+  df2=df[df[""department""]=='marketing']
+  df_mkt = df2.groupby('department')['salary'].max().reset_index(name='mkt_salary')
+  result = abs(pd.DataFrame(df_mkt['mkt_salary'] - df_eng['eng_salary']))
+  result.columns = ['salary_difference']
+  result
+  return result"
+Risky Projects,"-- Identify projects that are at risk for going overbudget. A project is considered to be overbudget if the cost of all employees assigned to the project is greater than the budget of the project. 
+ 
+ -- You'll need to prorate the cost of the employees to the duration of the project. For example, if the budget for a project that takes half a year to complete is \$10K, then the total half-year salary of all employees assigned to the project should not exceed \$10K. Salary is defined on a yearly basis, so be careful how to calculate salaries for the projects that last less or more than one year.
+ 
+ -- Output a list of projects that are overbudget with their project name, project budget, and prorated total employee expense (rounded to the next dollar amount).
+ 
+ HINT: to make it simpler, consider that all years have 365 days. You don't need to think about the leap years.",2,"- To calculate the expense of a project, you'll need to determine the project length in days and prorate employees salaries for the respective project duration
+ - The budget is already given at the project level
+ - You're only concerned with projects that have employees and budget information so you can join all three tables by an INNER JOIN to get all the required details
+ - A subquery is needed to apply a filter that will remove projects that are not over budget
+ - To round to the next dollar amount, use the ceiling() function","SELECT title,
+  budget,
+  ceiling(prorated_expenses) AS prorated_employee_expense
+ FROM
+  (SELECT title,
+  budget,
+  (end_date::date - start_date::date) * (sum(salary)/365) AS prorated_expenses
+  FROM linkedin_projects a
+  INNER JOIN linkedin_emp_projects b ON a.id = b.project_id
+  INNER JOIN linkedin_employees c ON b.emp_id=c.id
+  GROUP BY title,
+  budget,
+  end_date,
+  start_date) a
+ WHERE prorated_expenses > budget
+ ORDER BY title ASC",2,pandas.DataFrame,"- To calculate the expense of a project, you'll need to determine the project length in days and prorate employees salaries for respective project duration
+ - The budget is already given at the project level
+ - You're only concerned with projects that have employees and budget information so you can join all three tables by an INNER JOIN to get all the required details
+ - Calculate expense (sum of salaries of all employees aligned to the respective project) at project level using group by 
+ - Merge expense table with the combined table created in above step where project budget and duration can be found
+ - Select all the projects where expense is higher budget","def solution(linkedin_projects,linkedin_emp_projects,linkedin_employees):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+ 
+  df = pd.merge(linkedin_projects, linkedin_emp_projects, how = 'inner',left_on = ['id'], right_on=['project_id'])
+  df1 = pd.merge(df, linkedin_employees, how = 'inner',left_on = ['emp_id'], right_on=['id'])
+  df1['project_duration'] = (pd.to_datetime(df1['end_date']) - pd.to_datetime(df1['start_date'])).dt.days
+  df_expense = df1.groupby('title')['salary'].sum().reset_index(name='expense')
+  df_budget_expense = pd.merge(df1, df_expense, how = 'left',left_on = ['title'], right_on=['title'])
+  df_budget_expense['prorated_expense'] = np.ceil(df_budget_expense['expense']*(df_budget_expense['project_duration'])/365)
+  df_budget_expense['budget_diff'] = df_budget_expense['prorated_expense'] - df_budget_expense['budget']
+  df_over_budget = df_budget_expense[df_budget_expense[""budget_diff""] > 0]
+  result = df_over_budget[['title','budget','prorated_expense']]
+  result = result.drop_duplicates().sort_values('title')
+  return result"
+Top Percentile Fraud,"-- ABC Corp is a mid-sized insurer in the US and in the recent past their fraudulent claims have increased significantly for their personal auto insurance portfolio. They have developed a ML based predictive model to identify propensity of fraudulent claims. Now, they assign highly experienced claim adjusters for top 5 percentile of claims identified by the model.
+ -- Your objective is to identify the top 5 percentile of claims from each state. Your output should be policy number, state, claim cost, and fraud score.",3,"- Use a window function that will rank the records by percentile to 100.
+ - Partition by/group by the state
+ - Limit to only the top 5 percent of top fraud scores","WITH percentiles AS
+  (SELECT state,
+  percentile_cont(0.05) within GROUP (
+  ORDER BY fraud_score DESC) AS percentile
+  FROM fraud_score
+  GROUP BY state)
+ SELECT policy_num,
+  f.state,
+  claim_cost,
+  fraud_score
+ FROM fraud_score f
+ JOIN percentiles p ON f.state = p.state
+ WHERE fraud_score >= percentile",2,,"- Use a window function that will rank the records by percentile to 100.
+ - Partition by/group by the state
+ - Limit to only the top 5 percent of top fraud scores","def solution(fraud_score):
+  import pandas as pd
+  import numpy as np
+ 
+  fraud_score[""percentile""] = fraud_score.groupby('state')['fraud_score'].rank(pct=True)
+  df= fraud_score[fraud_score['percentile']>.95]
+  result = df[['policy_num','state','claim_cost','fraud_score']]"
+Distance Per Dollar,"-- Youâ€™re given a dataset of uber rides with the traveling distance (â€˜distance_to_travelâ€™) and cost (â€˜monetary_costâ€™) for each ride. For each date, find the difference between the distance-per-dollar for that date and the average distance-per-dollar for that year-month. Distance-per-dollar is defined as the distance traveled divided by the cost of the ride.
+ 
+ -- The output should include the year-month (YYYY-MM) and the absolute average difference in distance-per-dollar (Absolute value to be rounded to the 2nd decimal). 
+ -- You should also count both success and failed request_status as the distance and cost values are populated for all ride requests. Also, assume that all dates are unique in the dataset. Order your results by earliest request date first.",3,"- Find the distance-per-dollar by dividing the distance and cost columns 
+ - Add a month column extracted from the request_date column to help with grouping the distance-per-dollar by month 
+ - Use a window function to find the average monthly distance-per-dollar for each month
+ - Calculate the absolute difference between the distance_to_cost for each request_date and month
+ - Round the difference to the 2nd decimal spot and list by request date","SELECT request_mnth,
+  round(avg(mean_deviation), 2) AS difference
+ FROM
+  (SELECT request_mnth,
+  abs(dist_to_cost-monthly_dist_to_cost)::decimal AS mean_deviation
+  FROM
+  (SELECT to_char(request_date::date, 'YYYY-MM') AS request_mnth,
+  distance_to_travel/monetary_cost AS dist_to_cost,
+  sum(distance_to_travel) OVER (PARTITION BY to_char(request_date::date, 'YYYY-MM')) / sum(monetary_cost) OVER (PARTITION BY to_char(request_date::date, 'YYYY-MM')) AS monthly_dist_to_cost
+  FROM uber_request_logs) a) b
+ GROUP BY request_mnth",3,,,"def solution(uber_request_logs):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+ 
+  uber_request_logs['month_year'] = pd.to_datetime(
+  uber_request_logs['request_date']).dt.to_period('M')
+  uber_request_logs['monthly_dist_to_cost'] = uber_request_logs['distance_to_travel'] / \
+  uber_request_logs['monetary_cost']
+  uber_request_logs[""avg_monthly_dist_cost""] = uber_request_logs.groupby(['month_year'])['distance_to_travel'].transform(
+  'sum') / uber_request_logs.groupby(['month_year'])['monetary_cost'].transform('sum')
+  uber_request_logs['mean_deviation'] = round(np.abs(
+  uber_request_logs['monthly_dist_to_cost'] - uber_request_logs[""avg_monthly_dist_cost""]), 2)
+ 
+  result = uber_request_logs.groupby(['month_year'])['mean_deviation'].mean(
+  ).reset_index()
+  result['mean_deviation'] = round(result['mean_deviation'],2)
+  result
+ 
+  return result"
+Expensive Projects,"-- Given a list of projects and employees mapped to each project, calculate by the amount of project budget allocated to each employee . The output should include the project title and the project budget rounded to the closest integer. Order your list by projects with the highest budget per employee first.",2,"- To calculate the amount of budget allocated to each employee (budget-to-employee ratio), you'll need to determine the project budget and divide by the number of employees on the project
+ - Remove projects with no employees by linking the two tables and filtering using an INNER JOIN","SELECT title AS project,
+  round((budget/count(emp_id)::float)::numeric, 0) budget_emp_ratio
+ FROM ms_projects a
+ INNER JOIN ms_emp_projects b ON a.id = b.project_id
+ GROUP BY title,
+  budget
+ ORDER BY budget_emp_ratio DESC",1,pandas.DataFrame,"- To calculate the amount of budget allocated to each employee (budget-to-employee ratio), you'll need to determine the project budget and divide by the number of employees on the project
+ - Remove projects with no employees by linking the two tables and filtering using an INNER JOIN","def solution(ms_projects,ms_emp_projects):
+  import pandas as pd
+  import numpy as np
+ 
+  df=pd.merge(ms_projects, ms_emp_projects, how = 'inner',left_on = ['id'], right_on=['project_id'])
+  df1=df.groupby(['title','budget'])['emp_id'].size().reset_index()
+  df1['budget_emp_ratio'] = (df1['budget']/df1['emp_id']).round(0)
+  df2=df1.sort_values(by='budget_emp_ratio',ascending=False)
+  result = df2[[""title"",""budget_emp_ratio""]]
+  return result"
+Premium vs Freemium,"-- Find the total number of downloads for paying and non-paying users by date. Include only records where non-paying customers have more downloads than paying customers. The output should be sorted by earliest date first and contain 3 columns -- date, non-paying downloads, paying downloads.",3,,"SELECT date, non_paying,
+  paying
+ FROM
+  (SELECT date, sum(CASE
+  WHEN paying_customer = 'yes' THEN downloads
+  END) AS paying,
+  sum(CASE
+  WHEN paying_customer = 'no' THEN downloads
+  END) AS non_paying
+  FROM ms_user_dimension a
+  INNER JOIN ms_acc_dimension b ON a.acc_id = b.acc_id
+  INNER JOIN ms_download_facts c ON a.user_id=c.user_id
+  GROUP BY date
+  ORDER BY date) t
+ WHERE (non_paying - paying) >0
+ ORDER BY t.date ASC",3,pandas.DataFrame,"- ms_user_dimension will help link the number of downloads with whether an account is paying or non-paying
+ - Join ms_user_dimension, ms_acc_dimension, ms_download facts using LEFT JOIN
+ - Create columns for total downloads for non paying customers and paying customers using PIVOT
+ - The output should contain 3 columns date, non paying downloads and paying downloads and output shoud be sorted by date in ascending order.","def solution(ms_user_dimension,ms_acc_dimension, ms_download_facts):
+  import pandas as pd
+  import numpy as np
+ 
+  df=pd.merge(ms_user_dimension, ms_acc_dimension, how = 'inner',left_on = ['acc_id'], right_on=['acc_id'])
+  df1= pd.merge(df, ms_download_facts, how = 'inner',left_on = ['user_id'], right_on=['user_id'])
+  x=df1.pivot_table(index=['date'],columns=['paying_customer'],values=['downloads'],aggfunc='sum')
+  df2=pd.DataFrame(x.to_records())
+  df2.columns = df2.columns.str.replace(""[()]"","""").str.replace(""[' ']"","""").str.replace(""[,]"","""").str.replace(""downloads"","""")
+  df3=df2.fillna(0)
+  df3['diff'] = df3['no']-df3['yes']
+  df4 = df3[df3[""diff""] > 0]
+  result = df4[[""date"",""no"",""yes""]].sort_values(""date"")
+  return result"
+Finding Updated Records,,1,"- Ideally this dataset should consists of unique records of employees for only current year
+ - There are multiple years of data can be found for some employees
+ - Until now at every compensation revision cycle, all employees have received a salary increase so you can assume that the highest salary is the employee's current salary. Use a max() function to find the highest salary for each employee.
+ - The output should be all the details of all the employees with correct salary","SELECT id,
+  first_name,
+  last_name,
+  department_id,
+  max(salary)
+ FROM ms_employee_salary
+ GROUP BY id,
+  first_name,
+  last_name,
+  department_id
+ ORDER BY id ASC",1,pandas.DataFrame,"- Ideally this dataset should consists of unique records of employees for only current year
+ - Due to this ETL error multiple years of data can be found for some employees
+ - Until now at every compensation revision cycle, all employees have received a salary increase so you can assume that the highest salary is the employee's current salary. Use a max() function to find the highest salary for each employee.
+ - The output should be all the details of all the employees with correct salary","def solution(ms_employee_salary):
+  import pandas as pd
+  import numpy as np
+ 
+  result = ms_employee_salary.groupby(['id','first_name','last_name','department_id'])['salary'].max().reset_index().sort_values('id')
+  return result"
+Valuable Departments,-- Select the top 3 departments by the highest percentage of employees making over \$100K in salary and have at least 10 employees. Output the department name and percentage of employes making over \$100K. Sort by department with the highest percentage to the lowest.,3,"- Identify the employees making over $100K in salary and map these employees with their department using an INNER JOIN, which will serve as the numerator of your percentage calculation
+ - Join the table you created above with a list of all employees by department which will serve as the denominator of your percentage calculation
+ - Calculate the percentage of employees making over $100K by joining the table with employees making over $100K and list of all employees. Use a LEFT JOIN to preserve all rows.
+ - To ensure a percentage is displayed, convert the data type to a float or decimal by using a cast function.
+ - Use a WHERE clause to only include departments with at least 10 employees
+ - Sort the departments by percentage of employees making over $100K using an ORDER BY
+ - Take the top 3 departments by using a LIMIT","SELECT t.name,
+  (t.emp_xs100k*1.0/s.emp_all)*100 AS emp_xs100k_pct
+ FROM
+  (SELECT name,
+  count(id) emp_xs100k
+  FROM ms_employee a
+  JOIN ms_department b ON a.department_id=b.department_id
+  WHERE salary > 100000
+  GROUP BY name) t
+ LEFT JOIN
+  (SELECT name,
+  count(id) emp_all
+  FROM ms_employee a
+  JOIN ms_department b ON a.department_id=b.department_id
+  GROUP BY name) s ON t.name = s.name
+ WHERE s.emp_all >= 10
+ ORDER BY emp_xs100k_pct DESC
+ LIMIT 3",2,pandas.DataFrame,"- Merge the employee and department tables to get all the information using an inner merge
+ - Create a dataframe subset for employees having salaries greater than $100k
+ - Group by to count number of employees in each departement where salaries are higher than $100k
+ - Group by to count total number of employees in each department
+ - Calculate the percentage of employees making over $100K by joining the table with employees making over $100K and list of all employees. Use a left merge to preserve all rows.
+ - Filter the dataframe to only include departments with at least 10 employees
+ - Sort the departments by percentage of employees making over $100K using sort_values()
+ - Take the top 3 departments by using head()","def solution(ms_employee, ms_department):
+  import pandas as pd
+  import numpy as np
+ 
+  df=pd.merge(ms_employee, ms_department, how = 'inner',left_on = ['department_id'], right_on=['department_id'])
+  df_total_emp_cnt = df.groupby('name')['id'].size().reset_index(name='total_cnt')
+  df_xs_100k = df[df[""salary""] > 100000]
+  df_xs_100k_emp_cnt = df_xs_100k.groupby('name')['id'].size().reset_index(name='cnt')
+  df_by_dept = pd.merge(df_total_emp_cnt,df_xs_100k_emp_cnt,how = 'left',left_on = ['name'], right_on=['name'])
+  df_by_dept['emp_xs100k_pct'] = df_by_dept['cnt']/df_by_dept['total_cnt']*100
+  df_by_dept = df_by_dept[df_by_dept[""total_cnt""] >=10]
+  df2=df_by_dept.sort_values(by='emp_xs100k_pct',ascending=False).head(3)
+  result = df2[[""name"",""emp_xs100k_pct""]]
+  return result"
+Comments Distribution,"-- Write a query to calculate the distribution of comments by the count of users that joined Meta/Facebook between 2018 and 2020, for the month of January 2020. 
+ 
+ -- The output should contain a count of comments and the corresponding number of users that made that number of comments in Jan-2020. For example, you'll be counting how many users made 1 comment, 2 comments, 3 comments, 4 comments, etc in Jan-2020. Your left column in the output will be the number of comments while your right column in the output will be the number of users. Sort the output from the least number of comments to highest.
+ 
+ -- To add some complexity, there might be a bug where an user post is dated before the user join date. You'll want to remove these posts from the result.",3,"- Join users and comments table using an INNER JOIN
+ - Filter the dataset for comments from 01-2020 
+ - Filter the dataset for users that registered between 2018 and 2020. You can use Jan 1, 2018 and Dec 31, 2020 as the earliest and latest date.
+ - Exclude potential bugs from the dataset where comments that are created before user joined should be excluded
+ - Count number of comments per user for Jan-2020
+ - The output should be one column with the count of comments and another column with a count of users that made a certain number of comments in Jan-2020","SELECT comment_cnt,
+  count(t.id) AS user_cnt
+ FROM
+  (SELECT a.id,
+  count(*) AS comment_cnt
+  FROM fb_users a
+  INNER JOIN fb_comments b ON a.id=b.user_id
+  WHERE b.created_at BETWEEN '01-01-2020' AND '01-31-2020'::date
+  AND a.joined_at BETWEEN '01-01-2018' AND '12-31-2020'::date
+  AND created_at - joined_at >=0
+  GROUP BY a.id) t
+ GROUP BY comment_cnt
+ ORDER BY comment_cnt ASC",3,pandas.DataFrame,"- Join users and comments table using an inner merge
+ - Filter the dataset for comments from 01-2020 
+ - Filter the dataset for users that registered between 2018 and 2020.
+ - Exclude potential bugs from the dataset where comments that are created before user joined should be excluded
+ - Count number of comments per user for Jan-2020
+ - The output should be one column with the count of comments and another column with a count of users that made a certain number of comments in Jan-2020","def solution(customers, orders):
+  import pandas as pd
+ 
+  user_comments = pd.merge(fb_users, fb_comments, how='inner', left_on=['id'], right_on=['user_id'])
+  user_comments = user_comments[user_comments['created_at'] >= user_comments['joined_at']]
+  user_comments = user_comments[user_comments['joined_at'] >= '01-01-2018']
+  user_comments['created_yr_mnth'] = user_comments['created_at'].dt.strftime('%Y-%m')
+  df = user_comments[(user_comments['created_yr_mnth'] == '2020-01')]
+ 
+  df2 = df.groupby('id')['user_id'].count().reset_index(name='comment_cnt')
+  result = df2.groupby('comment_cnt')['id'].count().reset_index(name='user_cnt').sort_values('comment_cnt', ascending=True)
+ 
+ 
+  return result"
+Meta/Facebook Accounts,"-- Assuming we have accounts that were opened and closed by date in the 'fb_account_status' table, compute the percentage of accounts that were closed on January 10th, 2020 (01/10/2020)",2,"- It's important to note that the question asks to calculate the percentage of closed accounts. It's implied that you'd only count an account once. Use a DISTINCT when counting.
+ - The denominator should be the number of accounts that were both open and closed by date
+ - Use a CASE WHEN to count the number of open and closed accounts and use a subquery to store this information
+ - Convert the data type to a float or decimal when calculating the percentage","SELECT (closed/(open+closed)::FLOAT)*100 AS closed_percentage
+ FROM
+  (SELECT date, 
+  count(DISTINCT CASE WHEN status = 'closed' THEN acc_id END) AS closed,
+  count(DISTINCT CASE WHEN status = 'open' THEN acc_id END) AS open
+  FROM fb_account_status
+  GROUP BY date) t
+ WHERE date = '01-10-2020'",2,pandas.DataFrame,,"def solution(fb_account_status):
+  import pandas as pd
+  import numpy as np
+ 
+  x=fb_account_status.groupby(['date', 'status'])['acc_id'].count().unstack().fillna(0)
+  df1=pd.DataFrame(x.to_records())
+  df1['total_acc'] = (df1['closed']+df1['open'])
+  df1['percentage'] = (df1['closed']/df1['total_acc'])*100
+  df2 = df1[(df1[""date""]=='01-10-2020')]
+  result = df2[""percentage""]
+  return result"
+Most Active Users On Messenger,"-- Meta/Facebook Messenger stores the number of messages between users in a table named 'fb_messages'. In this table 'user1' is the sender, 'user2' is the receiver, and 'msg_count' is the number of messages exchanged between them.
+ -- Find the top 10 most active users on Meta/Facebook Messenger by counting their total number of messages sent and received. Your solution should output usernames and the count of the total messages they sent or received",2,"- You'll want to count both 'user1' and 'user2' 's activity since both sending and receiving messages is considered an activity
+ - Use a subquery with a UNION ALL to combine both users that sent and receive messages into one column. A UNION ALL is necessary because we do not want to de-duplicate records. For example, a user might send and receive the same number of messages.
+ - Do not name a column 'user' since it is a reserved word for many databases. 
+ - Use a ranking so that you can find the top 10 users in case there are any ties in the top 10.","with sq as (SELECT username, 
+  sum(msg_count) as total_msg_count,
+  rank() over (order by sum(msg_count) desc) 
+ FROM 
+  (SELECT 
+  user1 as username,
+  msg_count
+  FROM fb_messages
+  
+  UNION ALL 
+  
+  SELECT 
+  user2 as username,
+  msg_count
+  FROM fb_messages) a
+ GROUP BY username)
+ select username, total_msg_count from sq
+ where rank <= 10
+ ORDER BY total_msg_count DESC",2,pandas.DataFrame,,"def solution(fb_messages):
+  import pandas as pd
+  import numpy as np
+ 
+  df_concat = pd.concat(
+  [
+  fb_messages[[""user1"", ""msg_count""]],
+  fb_messages[[""user2"", ""msg_count""]].rename(columns={""user2"": ""user1""}),
+  ],
+  axis=0,
+  )
+  df1 = df_concat.groupby([""user1""])[""msg_count""].sum().reset_index()
+  df1[""rank""] = df1[""msg_count""].rank(ascending=False)
+  result = df1[df1[""rank""] <= 10][[""user1"", ""msg_count""]].sort_values(
+  ""msg_count"", ascending=False
+  )
+ 
+  return result"
+SMS Confirmations From Users,"-- Meta/Facebook sends SMS texts when users attempt to 2FA (2-factor authenticate) into the platform to log in. In order to successfully 2FA they must confirm they received the SMS text message. Confirmation texts are only valid on the date they were sent. 
+ 
+ -- Unfortunately, there was an ETL problem with the database where friend requests and invalid confirmation records were inserted into the logs, which are stored in the 'fb_sms_sends' table. These message types should not be in the table. 
+ 
+ -- Fortunately, the 'fb_confirmers' table contains valid confirmation records so you can use this table to identify SMS text messages that were confirmed by the user.
+ 
+ -- Calculate the percentage of confirmed SMS texts for August 4, 2020. Be aware that there are multiple message types, the ones you're interested in are messages with type equal to 'message'.",2,"- Filter out the invalid confirmation and friend request records in the 'fb_sms_sends' table
+ - JOIN the table tables using both the phone number and date keys
+ - A LEFT JOIN is required to perserve the count of the total number of messages sent 
+ - Because you're working with integers, you'll need to convert the data type to a float or decimal in the SELECT clause","SELECT COUNT(b.phone_number)::float / COUNT(a.phone_number) * 100 AS perc
+ FROM fb_sms_sends a
+ LEFT JOIN fb_confirmers b ON a.ds = b.date
+ AND a.phone_number = b.phone_number
+ WHERE a.ds = '08-04-2020'
+  AND a.type = 'message'",2,pandas.DataFrame,"- Filter out the invalid confirmation and friend request records in the 'fb_sms_sends' table
+ - Merge the table tables using both the phone number and date keys
+ - A left merge is required to preserve the count of the total number of messages sent 
+ - Because you're working with integers, you'll need to convert the data type to a float or decimal while calculating percentage","def solution(fb_sms_sends, fb_confirmers):
+  import pandas as pd
+  import numpy as np
+ 
+  df = fb_sms_sends[[""ds"",""type"",""phone_number""]]
+  df1 = df[df[""type""] == 'message']
+  df1_grouped = df1.groupby('ds')['phone_number'].count().reset_index(name='count')
+  df1_grouped_0804 = df1_grouped[df1_grouped['ds']=='08-04-2020']
+  df2 = fb_confirmers[[""date"",""phone_number""]]
+  df3 = pd.merge(df1,df2, how ='left',left_on =[""phone_number"",""ds""], right_on = [""phone_number"",""date""])
+  df3_grouped = df3.groupby('date')['phone_number'].count().reset_index(name='confirmed_count')
+  df3_grouped_0804 = df3_grouped[df3_grouped['date']=='08-04-2020']
+  result = (float(df3_grouped_0804['confirmed_count'])/df1_grouped_0804['count'])*100
+  return result"
+SMS Confirmations by FB,"-- Find the number of phone numbers that were sent a confirmation SMS text by carrier on August 7, 2020 (08-07-2020). Group the counts by country and create a separate column for each of the three carriers (at&t, sprint, rogers). Sort by country code in ascending order.",2,,"SELECT country, 
+  count(CASE WHEN carrier = 'at&t' THEN phone_number ELSE NULL END) as atnt,
+  count(CASE WHEN carrier = 'rogers' THEN phone_number ELSE NULL END) as rogers,
+  count(CASE WHEN carrier = 'sprint' THEN phone_number ELSE NULL END) as sprint
+ FROM fb_sms_sends
+ WHERE type = 'confirmation' 
+  AND ds = '08-07-2020'
+ GROUP BY country
+ ORDER BY country",2,pandas.DataFrame,"- Subset dataset by a date, then by 'confirmation'
+ - Summarize count of phone numbers to whom confirmation message was sent by country using a groupby() and unstack() function","def solution(fb_sms_sends):
+  import pandas as pd
+  import numpy as np
+ 
+  df = fb_sms_sends[(fb_sms_sends[""type""] == 'confirmation') & (fb_sms_sends[""ds""] == '08-07-2020')]
+  x=df.groupby(['country', 'carrier'])['phone_number'].count().unstack().fillna(0)
+  df1=pd.DataFrame(x.to_records()).sort_values('country',ascending=True)
+  return result"
+Top Engagements,"-- Calculate the percentage of search results, out of all the results, that were positioned in the top 3 and clicked by the user.
+ 
+ -- We have two tables that contain search results. The 'fb_search_results' table contains the search results from a user's search. In this table, search_id is a key that corresponds to the search_id column of the fb_search_events table. The position column refers to the position of the result. The 'fb_search_events' is a table that stores whether or not the user clicked on a particular search result.",2,"- The search_id and search_id are the same IDs and should be used as the columns in your JOIN clause
+ - Use a LEFT JOIN to perserve total search results
+ - Use built-in AVG() function to calculate average
+ - Use CASE WHEN to subset data to get only top 3 and has_clicked respectively
+ - When working with integers but needing to calculate a percentage, you'll need to convert the resulting data type to a float or decimal","SELECT count(CASE
+  WHEN POSITION <= 3
+  AND has_clicked = 'yes' THEN fr.search_id
+  ELSE NULL
+  END) * 1.0 / COUNT(fr.search_id) * 100 AS percentage
+ FROM fb_search_results AS fr
+ LEFT JOIN fb_search_events AS fe ON fr.search_id = fe.search_id",2,pandas.DataFrame,,"def solution(fb_search_events):
+  import pandas as pd
+  import numpy as np
+  
+  result_merge = pd.merge(fb_search_results, fb_search_events, how = 'left',on = ['search_id'])
+ 
+  count_result_merge = result_merge.shape[0]
+  count_top3_clicked = result_merge[(result_merge['position'] <= 3) & (result_merge['has_clicked'] == 'yes')].shape[0]
+ 
+  result = (count_top3_clicked / count_result_merge)*100
+  return result"
+Clicked Vs Non-Clicked Search Results,"-- The 'position' column represents the position of the search results, and 'has_clicked' column represents whether the user has clicked on this result. Calculate the percentage of clicked search results that were in the top 3 positions. Also, calculate the percentage of non-clicked search results that were in the top 3 positions. Both percentages should be with respect to the total number of search records (all positions and both clicked and non-clicked searches). Output both percentages in the same row as two columns.",2,"- Percentage can be defined as the number of results in the top 3 position count divided by the total number of results
+ - Use built-in AVG() function to calculate average
+ - Use CASE WHEN to subset data to get only top 3 and has_clicked respectively
+ - When working with integers but needing to calculate a percentage, you'll need to convert the resulting data type to a float or decimal","SELECT (AVG(CASE
+  WHEN search_results_position <=3
+  AND clicked = 1 THEN 1.0
+  ELSE 0
+  END)::float)*100 AS top_3_clicked,
+  (AVG(CASE
+  WHEN search_results_position <=3
+  AND clicked = 0 THEN 1.0
+  ELSE 0
+  END)::float)*100 AS top_3_notclicked
+ FROM fb_search_events",1,pandas.DataFrame,"- Percentage can be defined as the number of results in the top 3 position count divided by the total number of results
+ - Count the number of observations falls under this criteria
+ - Calculate percentage of total observations","def solution(fb_search_events):
+  import pandas as pd
+  import numpy as np
+  
+  yes_above3 = fb_search_events[(fb_search_events.search_results_position <= 3) & (fb_search_events.clicked == 1)].shape[0]
+  no_above3 = fb_search_events[(fb_search_events.search_results_position <= 3) & (fb_search_events.clicked == 0)].shape[0]
+  total_count = fb_search_events.shape[0]
+  result = pd.DataFrame(columns=((yes_above3 / total_count)*100, (no_above3 / total_count)*100))
+  return result"
+Algorithm Performance,"-- Meta/Facebook has developed a search algorithm that will parse through user comments and present the results of the search to a user. To evaluate the performance of the algorithm, we are given a table that consists of the search result the user clicked on ('notes' column), the user's search query, and the resulting search position that was returned for the specific comment. 
+  
+ -- The higher the position, the better, since these comments were exactly what the user was searching for. Write a query that evaluates the performance of the search algorithm against each user query. Refer to the hint section for more specifics on how to write the query.",2,"- The 'query' column is the search term the user was searching for
+  - The 'notes' column is the specific comment the user clicked on as a result of performing the search (i.e., this is the comment the user was searching for)
+  - The 'position' column is the search result position of the specific comment 
+  - Output only the search_id, query, and rating
+  - To evaluate the performance of the search algorithm, you'll need to rate each search result position. 
+  - When the 'position' is between 1 and 3, the search algorithm performed well. Give a rating of 5.
+  - When the 'position' is between 4 and 5, give a rating of 4
+  - When the 'position' is between 6 and 10, give a rating of 3
+  - When the 'position' is beyond 11, give a rating of 2
+  - If the query itself is not found in the 'notes' column, give a rating of 1, since it means that the search algorithm provided a false positive. You can assume that the search algorithm is case insensitive (for example, 'Cat' is equal to 'cat').
+  - Use REGEXP_REPLACE function with parameter '[^\w]+' and 'g' flag. For more info check https://www.sqlshack.com/overview-of-the-sql-replace-function/","SELECT DISTINCT t.search_id,
+  t.query,
+  CASE
+  WHEN t.check = FALSE THEN 1
+  WHEN t.check = TRUE
+  AND t.position >= 11 THEN 2
+  WHEN t.check = TRUE
+  AND (t.position BETWEEN 6 AND 10) THEN 3
+  WHEN t.check = TRUE
+  AND (t.position BETWEEN 4 AND 5) THEN 4
+  WHEN t.check = TRUE
+  AND t.position <=3 THEN 5
+  END AS rating
+ FROM
+  (SELECT r.query,
+  e.search_id,
+  e.position,
+  e.notes,
+  (regexp_replace(e.notes, '[^\w]+', ' ', 'g') ilike concat('% ', r.query, ' %')) AS CHECK
+  FROM fb_search_results r
+  LEFT JOIN fb_search_events e ON r.search_id = e.search_id) t",2,pandas.DataFrame,"- The 'query' column is the search term the user was searching for
+  - The 'notes' column is the specific comment the user clicked on as a result of performing the search (i.e., this is the comment the user was searching for)
+  - The 'position' column is the search result position of the specific comment 
+  - To evaluate the performance of the search algorithm, you'll need to rate each search result position. 
+  - Output only the search_id, query, and rating
+  - When the 'position' is between 1 and 3, the search algorithm performed well. Give a rating of 5.
+  - When the 'position' is between 4 and 5, give a rating of 4
+  - When the 'position' is between 6 and 10, give a rating of 3
+  - When the 'position' is beyond 11, give a rating of 2
+  - If the query itself is not found in the 'notes' column, give a rating of 1, since it means that the search algorithm provided a false positive. You can assume that the search algorithm is case insensitive (for example, 'Cat' is equal to 'cat').
+  - Use regex syntax with '[^\w]+' parameter","def solution(fb_search_events):
+  import pandas as pd
+  import numpy as np
+  
+  fb_search_events['notes'].fillna('0', inplace=True)
+  fb_search_events['flag'] = fb_search_events.apply(lambda x: x['query'].lower() in x['notes'].lower() , axis=1) 
+  fb_search_events.loc[(fb_search_events['position'].between(1,3))&(fb_search_events['flag'] == True) , 'ratings'] =5 
+  fb_search_events.loc[(fb_search_events['position'].between(4,5))&(fb_search_events['flag'] == True) , 'ratings'] =4 
+  fb_search_events.loc[(fb_search_events['position'].between(6,10))&(fb_search_events['flag'] == True) , 'ratings'] =3 
+  fb_search_events.loc[(fb_search_events['position']>=11 )&(fb_search_events['flag'] == True) , 'ratings'] =2 
+  fb_search_events['ratings'].fillna(1,inplace=True) 
+ 
+  result_merge = pd.merge(fb_search_results, fb_search_events, how = 'left',on = ['search_id'])
+  result = result_merge[['search_id', 'query_x', 'ratings']].drop_duplicates()
+  
+  return result"
+Posting Rate,"-- Write a query to get the post success rate by date.
+ -- Assume that the first action for all postings is 'enter' followed by either 'post' (if posting is successful) or 'cancel' (if posting is not successful).",2,"- Assume that the first action for all postings is 'enter' followed by either 'post' (if posting is successful) or 'cancel' (if posting is not successful).
+ - event_name 'post' is considered as success and 'cancel' is failure
+ - Posting rate can be defined as count of 'post' / count of 'enter'
+ - Create a pivot table, row values are dates and columns are 'enter' and 'post'","SELECT created_at,
+  post,
+  enter,
+  post/enter::float AS post_success_rate
+ FROM
+  (SELECT created_at,
+  count(CASE
+  WHEN event_name = 'enter' THEN user_id
+  END) AS enter,
+  count(CASE
+  WHEN event_name = 'cancel' THEN user_id
+  END) AS CANCEL,
+  count(CASE
+  WHEN event_name = 'post' THEN user_id
+  END) AS post
+  FROM fb_post_events
+  GROUP BY created_at) t
+ GROUP BY created_at, post, enter",2,pandas.DataFrame,"- Assume that the first action for all postings is 'enter' followed by either 'post' (if posting is successful) or 'cancel' (if posting is not successful).
+ - event_name 'post' is considered as success and 'cancel' is failure
+ - Posting rate can be defined as count of 'post' / count of 'enter'
+ - Create a pivot table, row values are dates and columns are 'enter' and 'post'","def solution(fb_post_events):
+  import pandas as pd
+  import numpy as np
+ 
+  x=fb_post_events.pivot_table(index=['created_at'],columns=['event_name'],values=['user_id'],aggfunc='count')
+  df1=pd.DataFrame(x.to_records())
+  df1.columns = df1.columns.str.replace(""[()]"","""").str.replace(""[' ']"","""").str.replace(""[,]"","""").str.replace(""user_id"","""")
+  df2=df1.fillna(0)
+  df2['post_success_rate'] = (df2['post']/df2['enter'])
+  result = df2[['created_at','post','enter','post_success_rate']]
+  return result"
+Acceptance Rate By Date,"-- What is the overall friend acceptance rate by date? Your output should have the rate of acceptances by the date the request was sent. Order by the earliest date to latest.
+ 
+ -- Assume that each friend request starts by a user sending (i.e., user_id_sender) a friend request to another user (i.e., user_id_receiver) that's logged in the table with action = 'sent'. If the request is accepted, the table logs action = 'accepted'. If the request is not accepted, no record of action = 'accepted' is logged.",2,"- Assume that each friend request starts by a user sending a friend request that's logged in the table with action = 'sent'
+ - When a friend request is accepted, a notification is sent to the user that sent the original friend request and action = 'accepted'. This also means that the original user_id_sender is now logged as user_id_accepted and vice versa for the original receiver. You'll need to filter your tables using this logic.
+ - Create two tables using subqueries where you're filtering out 'sent' and 'accepted' rows
+ - Join the two tables using a left join 
+ - The acceptance rate calculation should be (number of acceptance / number of sent requests)
+ - Group by the friend request sent date and order by DESC","WITH sent_cte AS
+  (SELECT date, user_id_sender,
+  user_id_receiver
+  FROM fb_friend_requests
+  WHERE action='sent' ),
+  accepted_cte AS
+  (SELECT date, user_id_sender,
+  user_id_receiver
+  FROM fb_friend_requests
+  WHERE action='accepted' )
+ SELECT a.date,
+  count(b.user_id_receiver)/CAST(count(a.user_id_sender) AS decimal) AS percentage_acceptance
+ FROM sent_cte a
+ LEFT JOIN accepted_cte b ON a.user_id_sender=b.user_id_sender
+ AND a.user_id_receiver=b.user_id_receiver
+ GROUP BY a.date",2,pandas.DataFrame,"- Assume that each friend request starts by a user sending a friend request that's logged in the table with action = 'sent'
+ - When a friend request is accepted, a notification is sent to the user that sent the original friend request and action = 'accepted'. This also means that the original user_id_sender is now logged as user_id_accepted and vice versa for the original receiver. You'll need to filter your tables using this logic.
+ - Create two subsets, one with 'accepted' and other with 'sent' request
+ - Merge both subsets with sender and receiver key
+ - Check if sent request is accepted or not across the dates
+ - Count overall sent request by date and respective acceptances
+ - Calculate acceptance rate","def solution(fb_friend_requests):
+  import pandas as pd
+  import numpy as np
+ 
+  df_sent=fb_friend_requests[fb_friend_requests.action == 'sent']
+  df_accepted=fb_friend_requests[fb_friend_requests.action == 'accepted']
+  new_df = pd.merge(df_sent, df_accepted, how='left', left_on=['user_id_sender','user_id_receiver'], right_on = ['user_id_sender','user_id_receiver'])
+  accepted_count=new_df.groupby([""date_x""]).count().reset_index()
+  accepted_count[""acceptance_rate""] = accepted_count[""action_y""]/accepted_count[""action_x""]
+  result = accepted_count[[""date_x"",""acceptance_rate""]]
+  return result"
+Popularity Percentage,"-- Find the popularity percentage for each user on Meta/Facebook. The popularity percentage is defined as the total number of friends the user has divided by the total number of users on the platform, then converted into a percentage by multiplying by 100.
+ -- Output each user along with their popularity percentage. Order records in ascending order by user id.
+ -- The 'user1' and 'user2' column are pairs of friends.",3,"- Youâ€™ll need to create two subqueries or CTEs to calculate total unique friends-pair and total number of friend per user
+ - To calculate total unique friends-pair, UNION the user1 and user2 columns. This will de-duplicate any users that are repeated in the column. You can ensure uniqueness by adding a DISTINCT. To calculate the total count of unique friends-pair, perform a count(*) on the subquery.
+ - To calculate the total number of friends per user, create one column that contains all users and a second column that contains all their friends. You can accomplish this by user1, user2 UNION user2, user1.
+ - JOIN the two subqueries together so that you can calculate the percentage of friends over total users in the platform. Youâ€™ll need to JOIN using a 1=1 relation as the key. The resulting table will be a list of users, their friends, and total number of users on the platform.
+ - Lastly, implement the percentage popularity formula by counting the number of friends per user and dividing by the total number of users on the platform.","WITH users_union AS
+  (SELECT user1,
+  user2
+  FROM facebook_friends
+  UNION SELECT user2 AS user1,
+  user1 AS user2
+  FROM facebook_friends)
+ SELECT user1,
+  count(*)::float /
+  (SELECT count(DISTINCT user1)
+  FROM users_union)*100 AS popularity_percent
+ FROM users_union
+ GROUP BY 1
+ ORDER BY 1",2,pandas.DataFrame,"- Get the count of unique user from both user1 and user 2 by concatenating both columns together using np.concatenate then selecting unique values using np.unique()
+ - Use len() to count the number of values or objects
+ - Create a dataframe with inverted column names (user1 as user2, user2 as user1) then concatenate this with the original df using pd.concat()
+ - Use drop_duplicates() to get the distinct values
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements in the specified column
+ - Create a new column by multiplying the count or size by 100 and dividing it by the count of unique users for both user1 and user2","def solution(facebook_friends):
+  import pandas as pd
+  import numpy as np
+ 
+  concatvalues =len(np.unique(np.concatenate([facebook_friends.user1.values,facebook_friends.user2.values])))
+  revert = facebook_friends.rename(columns= {'user1':'user2','user2':'user1'})
+  final = pd.concat([facebook_friends, revert],sort = False).drop_duplicates()
+  result = final.groupby('user1').size().to_frame('count').reset_index()
+  result['popularity_percent'] = 100*(result['count'] /concatvalues)
+  return result"
+Find the top-ranked songs for the past 20 years.,-- Find all the songs that were top-ranked (at first position) at least once in the past 20 years,2,"- Use the CURRENT_DATE constant to get the current date.
+  - Use the DATE_PART('year', CURRENT_DATE) function to get the current year.","SELECT 
+  distinct song_name
+  FROM billboard_top_100_year_end
+  WHERE 
+  year_rank = 1 AND
+  DATE_PART('year', CURRENT_DATE) - year <= 20",2,pandas.DataFrame,"- Create a column containing the difference of the current year and year column
+  - Current year can be obtained by importing the datetime module and using now().year
+  - Select specific column/s from dataframe using [column_name] then select rows with values less than or equal to â€˜<=â€™ 20 and equal to '==' 1
+  - Use AND '&' to check if both conditions are satisfied (True)
+  - Use [ [ column_name/s] ] to return a specified column of the dataframe","def solution(billboard_top_100_year_end):
+  import pandas as pd
+  import numpy as np
+  from datetime import datetime
+  
+  billboard_top_100_year_end['year_diff'] = datetime.now().year - billboard_top_100_year_end['year']
+  result = billboard_top_100_year_end[(billboard_top_100_year_end['year_diff'] <=20) & (billboard_top_100_year_end['year_rank'] == 1)]['song_name'].unique()
+  return result"
+Find all inspections which are part of an inactive program,,1,- Inactive programs have the value 'INACTIVE' for the program_status column.,"SELECT
+  *
+ FROM
+  los_angeles_restaurant_health_inspections
+ WHERE 
+  program_status = 'INACTIVE'",1,pandas.DataFrame,- Select specific column/s from dataframe using [column_anme] then select rows with value equal to â€˜==â€™ INACTIVE,"def solution(los_angeles_restaurant_health_inspections):
+  import pandas as pd
+  import numpy as np
+  
+  result = los_angeles_restaurant_health_inspections[los_angeles_restaurant_health_inspections['program_status'] == 'INACTIVE']
+  return result"
+Find the price of the most expensive beach properties for each city,"-- Find the price of the most expensive beach properties for each city. A beach property contains the ""beach"" keyword in the neighbourhood. Output the result along with the city name.",2,"- Use the ILIKE operator for the string pattern %beach% to identify search details related to beaches.
+ - Search for 'beach' in the 'neighbourhood' column in the dataset
+ - Use the GROUP BY to categorize results based on the city.","SELECT
+  city,
+  max(price) AS max_price
+ FROM airbnb_search_details
+ WHERE 
+  neighbourhood ILIKE '%beach%'
+ GROUP BY
+  city",2,pandas.DataFrame,"- Use str.contains(pattern) to check if the value is contained within a string
+ - Search for 'beach' in the 'neighbourhood' column of the dataset
+ - Use .groupby(column_name) to group the dataframe about the specifed column
+ - Use max() to determine the highest value along the group","def solution(airbnb_search_details):
+  import pandas as pd
+  import numpy as np
+ 
+  beach = airbnb_search_details[airbnb_search_details['neighbourhood'].str.lower().str.contains('beach', na=False)]
+  result = beach.groupby(['city'])['price'].max().reset_index()
+  return result"
+Ride Request Status,"-- Find the mean and standard deviation of each variable for each request status type.
+ -- Output the request status along with the corresponding mean and standard deviation variables: `distance_to_travel`, `monetary_cost`, and `driver_to_client_distance`.",3,,"SELECT
+  request_status,
+  
+  AVG(distance_to_travel) AS mean_distance_to_travel,
+  STDDEV(distance_to_travel) AS std_distance_to_travel,
+  
+  AVG(monetary_cost) AS mean_monetary_cost,
+  STDDEV(monetary_cost) AS std_monetary_cost,
+  
+  AVG(driver_to_client_distance) AS mean_driver_to_client_distance,
+  STDDEV(driver_to_client_distance) AS std_driver_to_client_distance
+ FROM
+  uber_ride_requests
+ GROUP BY
+  request_status",3,pandas.DataFrame,"- Group by request_status using groupby() then to perform or apply multiple functions to the dataframes column simultaneously, use agg() with 'mean'to get average of elements, std for the standard deviation; use reset_index() to realign indexes
+ - Clean resulting multilevel column indexes by using df.columns.droplevel(0)","def solution(uber_ride_requests):
+  import pandas as pd
+ 
+  result = uber_ride_requests.groupby('request_status', as_index=False).agg({'distance_to_travel':['mean', 'std'], 'monetary_cost':['mean','std'], 'driver_to_client_distance':['mean','std']})
+ 
+  return result"
+Find the total number of available beds per hosts' nationality,"-- Find the total number of available beds per hosts' nationality.
+ -- Output the nationality along with the corresponding total number of available beds.
+ -- Sort records by the total available beds in descending order.",2,"- Use the SUM() function to find the total beds.
+ - Use INNER JOIN on host id to combine records from both datasets.
+ - Group records by nationality.","SELECT
+  nationality,
+  SUM(n_beds) AS total_beds_available
+ FROM
+  airbnb_hosts h
+ INNER JOIN
+  airbnb_apartments a
+ ON
+  h.host_id = a.host_id
+ GROUP BY
+  nationality
+ ORDER BY
+  total_beds_available DESC",2,pandas.DataFrame,"- Use pd.merge(dataframe1, dataframe2, on = common_table_keys) to perform inner join on the dataframes
+ - Group the dataframe by a certain column using groupby(column_name) then use .sum() to get the total per group
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order 
+ - Use .rename(columns = {'old_name':'new_name'}) to rename specific columns","def solution(airbnb_hosts,airbnb_apartments):
+  import pandas as pd
+  import numpy as np
+ 
+  merged_df = pd.merge(airbnb_hosts, airbnb_apartments, how='left', left_on=['host_id'], right_on = ['host_id'])
+  total_beds = merged_df.groupby(['nationality'])['n_beds'].sum().reset_index().sort_values('n_beds',ascending = False)
+  result = total_beds.rename(columns={""n_beds"": ""total_beds_available""})
+  return result"
+Ride Request Correlation Variables,"-- Find the correlation between pairs of the three variables in the table: `distance_to_travel`, `monetary_cost`, and `driver_to_client_distance` by the type of request_status.
+ -- Output the request status along with corresponding pairs:
+  -- - Correlation between distance to travel and monetary cost.
+  -- - Correlation between distance to travel and driver to client distance.
+  -- - Correlation between monetary cost and driver to client distance.",3,,"SELECT
+  request_status,
+  
+  corr(distance_to_travel, monetary_cost) AS c1,
+  corr(distance_to_travel, driver_to_client_distance) AS c2,
+  corr(monetary_cost, driver_to_client_distance) AS c3
+ FROM
+  uber_ride_requests
+ GROUP BY
+  request_status",1,pandas.DataFrame,- Group by request_status using groupby() then use corr() to get the correlation between the selected features per group; use reset_index() to realign the resulting multilevel column indexes,"def solution(uber_ride_requests):
+  import pandas as pd
+  import numpy as np
+ 
+  result = uber_ride_requests.groupby(['request_status'])['distance_to_travel','monetary_cost','driver_to_client_distance'].corr().reset_index()
+  return result"
+European and Non-European Olympics,"-- Add a column to each row which will classify Olympics that athlete is competing in as 'European' or 'NonEuropean' based on the city it was hosted. Output all details along with the corresponding city classification.
+ 
+ -- European cities are Athina, Berlin, London, Paris, Albertville and Lillehammer.",1,"- European cities: Athina, Berlin, London, Paris, and Lillehammer.
+ - Use the IN statement to find records with a matching value to the city list.
+ - Use the formula CASE WHEN ... THEN 1 ELSE 0 END to classify Olympics.","SELECT
+  *,
+  (CASE
+  WHEN city IN ('Athina', 'Berlin', 'London', 'Paris', 'Lillehammer', 'Albertville') 
+  THEN 'European'
+  ELSE 'NonEuropean' END) AS city_classification
+ FROM olympics_athletes_events",1,pandas.DataFrame,"- Define or create a list containing the european cities to select then use .isin(cities_list) to filter rows if it is in the defined list otherwise use with tilde '~' to get those not in the cities_list
+ - Use np.select(condition,result) to apply an If Else condition to the dataframe by defining a variable containing conditions that need to be met (If is in cities_list, if not in cities_list) and another variable containing the results (European, NonEuropean)","def solution(olympics_athletes_events):
+  import pandas as pd
+  import numpy as np
+ 
+  europe = ['Athina', 'Berlin', 'London', 'Paris', 'Lillehammer', 'Albertville']
+  condlist = [olympics_athletes_events['city'].isin(europe), ~olympics_athletes_events['city'].isin(europe)]
+  choicelist = ['European', 'NonEuropean']
+  olympics_athletes_events['city_classification'] = np.select(condlist, choicelist)
+  result = olympics_athletes_events
+ 
+  return result"
+Order all countries by the year they first participated in the Olympics,,1,"- Use the MIN() function to find the first year a country participated in the Olympics.
+ - Group records by the NOC.","SELECT
+  noc,
+  min(year) AS first_time_year
+ FROM olympics_athletes_events
+ GROUP BY 
+  noc
+ ORDER BY 
+  first_time_year,
+  noc",1,pandas.DataFrame,"- Use .groupby(column_name) to group the dataframe about the specifed column and use min() to return the smallest values per group
+ - Convert the resulting object to a dataframe using to_frame()
+ - Use sort_values(column_name, order) to sort along a specified column;","def solution(olympics_athletes_events):
+  import pandas as pd
+  import numpy as np
+ 
+  result = olympics_athletes_events.groupby(['noc'])['year'].min().to_frame('first_time_year').reset_index().sort_values(['first_time_year','noc'])
+  return result"
+Total Cost Of Orders,"-- Find the total cost of each customer's orders. Output customer's id, first name, and the total order cost. Order records by customer's first name alphabetically.",1,"- Use the SUM() function to find the total cost.
+ - Use JOIN on customer id to combine records from both tables.
+ - Group records by the customer's first name.","SELECT customers.id,
+  customers.first_name,
+  SUM(total_order_cost)
+ FROM orders
+ JOIN customers ON customers.id = orders.cust_id
+ GROUP BY customers.id,
+  customers.first_name
+ ORDER BY customers.first_name ASC;",1,pandas.DataFrame,"- Perform inner join on orders and customers using pd.merge(dataframe1, dataframe2, on = common_table_keys)
+ - Use .groupby(column_name) to group the dataframe about the specifed column then use sum() to get the total of order_cost","def solution(customers, orders):
+  import pandas as pd
+  import numpy as np
+ 
+  merge = pd.merge(customers, orders, left_on=""id"", right_on=""cust_id"")
+  merge = (
+  merge.groupby([""cust_id"", ""first_name""])[""total_order_cost""].sum().reset_index()
+  )
+  result = merge.sort_values(by=""first_name"", ascending=True)
+  return result"
+Number of Streets Per Zip Code,"-- Find the number of different street names for each postal code, for the given business dataset. For simplicity, just count the first part of the name if the street name has multiple words. 
+ 
+ -- For example, East Broadway can be counted as East. East Main and East Broadly may be counted both as East, which is fine for this question. 
+ 
+ -- Counting street names should also be case insensitive, meaning FOLSOM should be counted the same as Folsom. Lastly, consider that some street names have different structures. For example, Pier 39 is the same street as 39 Pier, your solution should count both situations as Pier street.
+ 
+ -- Output the result along with the corresponding postal code. Order the result based on the number of streets in descending order and based on the postal code in ascending order.",2,"- Consider situation where the address has different structure: with number on the first place and with street name on the first place
+ - Use the COUNT() function to count the street names.
+ - Use the SPLIT_PART() function to extract the street name from the business address.
+ - Use the LOWER() function to convert street names to lower case. It avoids recounting the same street name with different letter cases.
+ - Use GROUP BY to group records based on the postal code.","SELECT business_postal_code,
+  COUNT (DISTINCT CASE
+  WHEN left(business_address, 1) ~ '^[0-9]' THEN lower(split_part(business_address, ' ', 2))
+  ELSE lower(split_part(business_address, ' ', 1))
+  END)AS n_streets
+ FROM sf_restaurant_health_violations
+ WHERE business_postal_code IS NOT NULL
+ GROUP BY business_postal_code
+ ORDER BY n_streets DESC,
+  business_postal_code ASC",3,pandas.DataFrame,"- Consider situation where the address has different structure: with number on the first place and with street name on the first place
+ - notnull() can be used to determine the non-missing values in the dataframe
+ - Split the address into words by converting the object to str first, using astype(str), then applying str.split()
+ - Use str.lower() to convert strings to lower case
+ - Use nunique() to get the number of distinct observations per group or specified axis then convert the resulting object to a dataframe using to_frame('column_name')
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(sf_restaurant_health_violations):
+  
+  import pandas as pd
+ 
+  sf_restaurant_health_violations['street'] = sf_restaurant_health_violations['business_address'].apply(lambda x: x.split(' ')[1].lower() if str(x.split(' ')[0][0]).isdigit() == True else x.split(' ')[0].lower())
+  result = sf_restaurant_health_violations.groupby('business_postal_code')['street'].nunique().to_frame('n_street').reset_index().sort_values(by='business_postal_code', ascending=True).sort_values(by='n_street',ascending=False)
+  return result"
+Health Inspections Per Street,"-- Find the number of inspections for each street name where a risk category value is assigned. Output the result along with the street name. Order the results based on the number of inspections in descending order.
+ 
+ -- It's hard to catch every variation of how street names are written. Here are the rules for extracting street names: 
+ - if a word (not a number) is the first element return that word
+ - if number is the first element, e.g. ""350 Broadway St"", then you should return ""broadway""
+ - if number is the first element and second element in street name has only one letter, e.g. ""295 B Orizaba Ave"", then you should return 3rd element ""orizaba""
+ 
+ Everything should be lower cased.",2,"- Check to see if risk_category has a value and should be included
+ - Find the street name by splitting the business_address column using the SPLIT_PART() function.
+ - Since there are streets with the same name but in different cases, use the LOWER() function to convert all values to lowercase.
+  - Ex: Mission and MISSION.
+ - Use the WHERE clause to filter away records where risk_category is null.
+ - Use GROUP BY to group records based on the street name.
+ - Use ORDER BY to order the result.","SELECT CASE
+  WHEN left(business_address, 1) ~ '^[0-9]' THEN 
+  CASE WHEN length(lower(split_part(business_address, ' ', 2))) > 1 THEN lower(split_part(business_address, ' ', 2))
+  ELSE lower(split_part(business_address, ' ', 3))
+  END
+  ELSE lower(split_part(business_address, ' ', 1))
+ END AS street,
+  count(distinct inspection_id) AS number_of_risky_restaurants
+ FROM sf_restaurant_health_violations
+ WHERE risk_category IS NOT NULL
+ GROUP BY street
+ ORDER BY number_of_risky_restaurants DESC,
+  street ASC",3,pandas.DataFrame,"- notnull() can be used to determine the non-missing values in the dataframe
+ - Split the address into words by converting the object to str first, using astype(str), then applying str.split()
+ - Use str.lower() to convert strings to lower case
+ - Use size() to get the number of elements in the specified column then convert the resulting object to dataframe using to_frame('column_name')
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(sf_restaurant_health_violations):
+  import pandas as pd
+  import numpy as np
+  
+  def street(x):
+  if str(x.split(' ')[0][0]).isdigit() == True:
+  if len(x.split(' ')[1]) > 1:
+  return x.split(' ')[1]
+  else:
+  return x.split(' ')[2]
+  else:
+  return x.split(' ')[0]
+ 
+  sf_restaurant_health_violations['street'] = sf_restaurant_health_violations['business_address'].apply(street)
+ 
+  null_risk = sf_restaurant_health_violations[sf_restaurant_health_violations['risk_category'].notnull()]
+  null_risk['street'] = null_risk['street'].str.lower()
+  result = null_risk.groupby(['street'])['inspection_id'].nunique().to_frame('number_of_risky_restaurants').reset_index().sort_values(['number_of_risky_restaurants', 'street'], ascending=[False, True])
+  
+  return result"
+Find the lowest score for each facility in Hollywood Boulevard,,2,"- Use MIN() function to find the lowest score for each facility
+ - Use the ILIKE operator for the string pattern 'HOLLYWOOD BLVD' to find facilities in Hollywood Boulevard.
+ - Use GROUP BY to group the result based on the facility name.
+ - Use ORDER BY on both the lowest score and the facility name to sort the result.","SELECT
+  facility_name,
+  min(score) AS min_score
+ FROM 
+  los_angeles_restaurant_health_inspections
+ WHERE 
+  facility_address ILIKE '%HOLLYWOOD BLVD%'
+ GROUP BY
+  facility_name
+ ORDER BY 
+  min_score DESC,
+  facility_name ASC",2,pandas.DataFrame,"- Use str.contains(pattern) to check if the value is contained within a string
+ - Use .groupby(column_name) to group the dataframe about the specifed column
+ - Use [column1].min() function to get the minimum values of the column then convert the resulting object to a dataframe using to_frame('column_name')
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(los_angeles_restaurant_health_inspections):
+  import pandas as pd
+  import numpy as np
+  
+  hollywood = los_angeles_restaurant_health_inspections[los_angeles_restaurant_health_inspections['facility_address'].str.contains('HOLLYWOOD BLVD')]
+  result = hollywood.groupby(['facility_name'])['score'].min().to_frame('min_score').reset_index().sort_values(['min_score','facility_name'], ascending = [False, True])
+  return result"
+Businesses Open On Sunday,,2,"- Use the COUNT() function to count the number of businesses.
+ - Use LEFT JOIN on business id to combine records form both datasets.
+ - Filter out records with the value of NULL for the sunday column using a WHERE clause.
+ - Group records by sunday.","SELECT 
+  sunday, 
+  count(*) as total_business 
+ FROM yelp_business_hours business_hours 
+ LEFT JOIN yelp_business business 
+ ON business_hours.business_id = business.business_id 
+ WHERE sunday is NOT NULL
+  and is_open = 1
+ GROUP BY sunday
+ ORDER BY total_business DESC",2,pandas.DataFrame,"- Perform left join by using df.merge(df2, on = common_table_keys, how = 'left')
+ - Filter out rows that are not null by using notnull()
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements per group
+ - Convert the resulting object to a dataframe using to_frame()
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(yelp_business_hours,yelp_business):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(yelp_business_hours,yelp_business, on = 'business_id', how = 'left')
+  merged = merged[(merged['sunday'].notnull()) & (merged['is_open']==1)]
+  result = merged.groupby(['sunday']).size().to_frame('total_business').reset_index().sort_values('total_business', ascending = False)
+  return result"
+Bikes Last Used,"-- Find the last time each bike was in use. Output both the bike number and the date-timestamp of the bike's last use (i.e., the date-time the bike was returned). Order the results by bikes that were most recently used.",1,,"SELECT bike_number,
+  max(end_time) last_used
+ FROM dc_bikeshare_q1_2012
+ GROUP BY bike_number
+ ORDER BY last_used DESC",1,pandas.DataFrame,,"def solution(dc_bikeshare_q1_2012):
+  import pandas as pd
+ 
+  result = dc_bikeshare_q1_2012.groupby('bike_number')['end_time'].max().to_frame( 'last_used').reset_index().sort_values(by='last_used', ascending=False)
+ 
+  return result"
+Days At Number One,"-- Find the number of days a US track has stayed in the 1st position for both the US and worldwide rankings. Output the track name and the number of days in the 1st position. Order your output alphabetically by track name.
+ 
+ -- If the region 'US' appears in dataset, it should be included in the worldwide ranking.",3,"- Use the SUM() and OVER() functions in an inner query to find the number of days.
+ - Use INNER JOIN on track name and date to combine records from both datasets.
+ - Number one positioned tracks have the value of '1' in the position column for the sum od days in number one position.
+ - Use the MAX() function in an outer query to find the desired result.
+ - Group records by the track name.","SELECT trackname,
+  MAX(n_days_on_n1_position) AS n_days_on_n1_position
+ FROM
+  (SELECT us.trackname,
+  SUM(CASE
+  WHEN world.position = 1 THEN 1
+  ELSE 0
+  END) OVER(PARTITION BY us.trackname) AS n_days_on_n1_position
+  FROM spotify_daily_rankings_2017_us us
+  INNER JOIN spotify_worldwide_daily_song_ranking world ON world.trackname = us.trackname
+  AND world.date = us.date
+  WHERE us.position = 1 ) tmp
+ GROUP BY trackname
+ ORDER BY trackname",3,pandas.DataFrame,"- Use pd.merge(dataframe1, dataframe2, on = common_table_keys) to perform inner join on the dataframes
+ - Filter out rows by selecting specific column/s from dataframe using [column_name] then select rows US daily ranking position to be 1 
+ - Create a column that contains the count of top 1 positions under the worldwide ranking 
+ - Create a column containing the number of days by grouping by trackname and applying transform() upon using sum() in getting the total of the count of top1 positions uder the worldwide ranking
+ - Use .groupby(column_name) to group the dataframe by n_days then use max() to get the highest value of elements per group; Convert the resulting object to a dataframe using to_frame()
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(spotify_daily_rankings_2017_us,spotify_worldwide_daily_song_ranking):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(spotify_daily_rankings_2017_us,spotify_worldwide_daily_song_ranking, on = ['trackname','date'])
+  top1 = merged[merged['position_x'] == 1]
+  top1['world_position'] = (top1['position_y'] == 1).astype(int)
+  top1['ndays'] = top1.groupby(['trackname'])['world_position'].transform('sum')
+  result = top1.groupby(['trackname'])['ndays'].max().to_frame('ndays').reset_index().sort_values('trackname')
+  return result"
+Best Selling Item,-- Find the best selling item for each month (no need to separate months by year) where the biggest total invoice was paid. The best selling item is calculated using the formula (unitprice * quantity). Output the description of the item along with the amount paid.,3,,"SELECT MONTH,
+  description,
+  total_paid
+ FROM
+  (SELECT date_part('month', invoicedate) AS MONTH,
+  description,
+  sum(unitprice * quantity) AS total_paid,
+  rank() OVER (PARTITION BY date_part('month', invoicedate)
+  ORDER BY sum(unitprice * quantity) DESC) AS rnk
+  FROM online_retail
+  GROUP BY MONTH,
+  description) tmp
+ WHERE rnk = 1",3,pandas.DataFrame,"- Create a column containing the month from invoice date by converting the invoice date to datetime using pd.to_datetime and extracting the month using dt.month
+ - Create a column that contains the best selling item or the product of unit price and quantity
+ - Groupby month using groupby() and use transform() upon getting the sum() of the best selling item to get the running total for invoices per month
+ - From here, Filter out rows under the total invoice to be equal to the max of the total invoice
+ - Filter out again the resulting dataframe and select rows under best selling item to be equal to the max of all of best selling item
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe","def solution(online_retail):
+  import pandas as pd
+  import numpy as np
+ 
+  online_retail['month'] = (online_retail['invoicedate'].apply(pd.to_datetime)).dt.month
+  online_retail['paid'] = online_retail['unitprice'] * online_retail['quantity']
+  online_retail['total_paid'] = online_retail.groupby(['month','description'])['paid'].transform('sum')
+ 
+  result = online_retail[['month', 'total_paid', 'description']].drop_duplicates()
+  result['rnk'] = result.groupby('month')['total_paid'].rank(method='max', ascending=False)
+  result = result[result['rnk']==1][['month', 'description','total_paid']].sort_values(['month'])
+  
+  return result"
+Find the genre of the person with the most number of oscar winnings,,3,"- Use nested inner queries to find the number of winning of each nominee using COUNT() and OVER() functions.
+ - Winners have the value of 'true' for the winner column.
+ - Order records by the number of winnings in descending order and by the nominee in ascending order.
+ - Use LIMIT to find the highest record.
+ - Use an INNER JOIN on the nominee in an outer query to combine the results of inner queries with the nominee_information dataset.
+ - Output desired result in the outer query.","SELECT top_genre 
+ FROM nominee_information info 
+ INNER JOIN (
+  SELECT 
+  nominee, 
+  n_winnings
+  FROM (
+  SELECT 
+  nominee, 
+  count(*) OVER (PARTITION BY nominee) as n_winnings
+  FROM oscar_nominees 
+  WHERE winner = true 
+  ) tmp
+  ORDER BY 
+  n_winnings DESC, 
+  nominee ASC
+  LIMIT 1 
+  ) tmp 
+ ON tmp.nominee = info.name",3,pandas.DataFrame,"- Filter out rows by selecting specific column/s from dataframe using [column_name] then select rows under winner to be True
+ - Use .groupby(column_name) to group the dataframe about the specifed column then use size() to get the count elements per group
+ - Convert the resulting object to a dataframe using to_frame()
+ - Perform left join between the winners and nominee_information df using pd.merge(dataframe1, dataframe2, on = common_table_keys, how = left) 
+ - From here, groupby top_genre and get the largest value of the count of win per group using nlargest(n, column). Do this using a lambda function and apply(); realign indexes using reset_index(drop=True)
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order 
+ - Limit rows to be printed by specifying n in head (n = 1)
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe","def solution(oscar_nominees,nominee_information):
+  import pandas as pd
+  import numpy as np
+ 
+  winner = oscar_nominees[oscar_nominees['winner'] == True]
+  n_winnings = winner.groupby('nominee').size().to_frame('n_win').reset_index()
+  merged = pd.merge(n_winnings, nominee_information, left_on = 'nominee', right_on = 'name', how = 'left')
+  result = merged.groupby(['top_genre']).apply(lambda x: x.nlargest(1, 'n_win')).reset_index(drop=True).sort_values('n_win',ascending = False).head(1)[['top_genre']]
+  return result"
+Gender With Most Doctor Appointments,,1,"- Use a GROUP BY gender and a count() to get the total appointments by gender
+ - Sort by highest number of appointments using an ORDER BY
+ - LIMIT 1 to get the highest number","SELECT gender,
+  count(appointmentid) AS n_appointments
+ FROM medical_appointments
+ GROUP BY gender
+ ORDER BY n_appointments DESC
+ LIMIT 1",1,pandas.DataFrame,"- Use .groupby(column_name) to group the dataframe my gender then use size() to get count of elements per group
+ - Convert the resulting object to a dataframe using to_frame()
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order 
+ - Limit rows to be printed by specifying n in head (n = 1)","def solution(medical_appointments):
+  import pandas as pd
+  import numpy as np
+ 
+ 
+  result = medical_appointments.groupby('gender').size().to_frame('total').reset_index().sort_values('total', ascending = False).head(1)
+  return result"
+Highest Total Miles,-- Youâ€™re given a table of Uber rides that contains the mileage and the purpose for the business expense. Youâ€™re asked to find business purposes that generate the most miles driven for passengers that use Uber for their business transportation. Find the top 3 business purpose categories by total mileage.,2,"- Aggregate miles travelled by â€˜purposeâ€™ using GROUP BY and sum()
+ - Filter out blank purposes
+ - Sort miles travelled in descending order and select top 3 purpose along with total miles","WITH cte AS
+  (SELECT purpose,
+  sum(miles) AS miles_sum
+  FROM my_uber_drives
+  WHERE purpose IS NOT NULL AND category ILIKE '%business%'
+  GROUP BY purpose)
+ SELECT purpose,
+  miles_sum
+ FROM
+  (SELECT purpose,
+  miles_sum,
+  rank() OVER (
+  ORDER BY miles_sum DESC) AS rnk
+  FROM cte) a
+ WHERE rnk<=3",2,pandas.DataFrame,"- Aggregate miles travelled by â€˜purposeâ€™ using groupby() and sum()
+ - Filter out blank purposes
+ - Sort miles travelled in descending order and select top 3 purpose along with total miles","def solution(my_uber_drives):
+  import pandas as pd
+ 
+  df_grouped = my_uber_drives[my_uber_drives['category']==""Business""].groupby('purpose')['miles'].sum().reset_index()
+ 
+  df_grouped['rank'] = df_grouped['miles'].rank(method='min', ascending=False)
+  result = df_grouped[df_grouped['rank'] <= 3][['purpose', 'miles']]
+ 
+  return result"
+Number Of Records By Variety,,1,,"SELECT variety,
+  count(variety) n_total_varieties
+ FROM iris
+ GROUP BY variety
+ ORDER BY variety",1,pandas.DataFrame,,"def solution(iris):
+  import pandas as pd
+ 
+  result = iris.groupby(['variety'])['sepal_length'].count().reset_index().sort_values(by='variety')
+  
+  return result"
+Total Number Of Housing Units,,1,,"SELECT year,
+  SUM(south + west + midwest + northeast) AS n_units
+ FROM housing_units_completed_us
+ GROUP BY 1
+ ORDER BY 1",1,pandas.DataFrame,"- Convert south, west, midwest, northeast to integer using astype()
+ - Create a column containing the sum of south, west, midwest, northeast
+ - Group by year using groupby() and use transform() with sum() to get the running sum of housing per group or year
+ - Remove duplicates by using drop_duplicates() then use [[column_name]] to select desired columns to be kept
+ - sort along reviewer_score using sort_values()","def solution(housing_units_completed_us):
+  result = housing_units_completed_us.groupby('year')['south','west','midwest','northeast'].sum().reset_index()
+  result['total'] = result['south'] + result['west'] + result['midwest'] + result['northeast'] 
+  result = result[['year', 'total']]
+  return result"
+Reviews of Hotel Arena,"-- Find the number of rows for each review score earned by 'Hotel Arena'. Output the hotel name (which should be 'Hotel Arena'), review score along with the corresponding number of rows with that score for the specified hotel.",1,,"SELECT hotel_name,
+  reviewer_score,
+  count(*)
+ FROM hotel_reviews
+ WHERE hotel_name = 'Hotel Arena'
+ GROUP BY hotel_name,
+  reviewer_score",1,pandas.DataFrame,,"def solution(hotel_reviews):
+  import pandas as pd
+  import numpy as np
+ 
+  arena = hotel_reviews[hotel_reviews['hotel_name'] == 'Hotel Arena']
+  result = arena.groupby(['reviewer_score','hotel_name']).size().to_frame('n_reviews').reset_index()
+  return result"
+Activity Rank,"-- Find the email activity rank for each user. Email activity rank is defined by the total number of emails sent. The user with the highest number of emails sent will have a rank of 1, and so on. Output the user, total emails, and their activity rank. Order records by the total emails in descending order. Sort users with the same rank score in alphabetical order.
+ -- In your rankings, return a unique value (i.e., a unique percentile) even if multiple users have the same number of emails.",3,"-Find the total email sent by each user using the COUNT() function.
+ - Group records by from_user.
+ - Use the formula ROW_NUMBER to order records by total emails in descending order.
+ - Order user with the same rank value alphabetically","SELECT from_user, 
+  count(*) as total_emails, 
+  row_number() OVER ( order by count(*) desc)
+  FROM google_gmail_emails 
+  GROUP BY from_user
+  order by 3, 1",3,pandas.DataFrame,"- Use groupby() to group along from_users then use size() to get the count of values per group; convert the resulting object to dataframe using to_frame('column_name')
+ - Create a column that contains the rank based on the count of emails using rank(), specify parameter method='first' to get unique rank","def solution(google_gmail_emails):
+  import pandas as pd
+  import numpy as np
+ 
+  result = google_gmail_emails.groupby(
+  ['from_user']).size().to_frame('total_emails').reset_index()
+  result['rank'] = result['total_emails'].rank(method='first', ascending=False)
+  result = result.sort_values(by=['rank', 'from_user'])
+ 
+  return result"
+Total AdWords Earnings,,1,- Use a sum() function and GROUP BY to find the total earnings by business type,"SELECT 
+  business_type, 
+  sum(adwords_earnings) as earnings
+ FROM google_adwords_earnings
+ GROUP BY business_type;",1,pandas.DataFrame,"- Create a column containing the running sum per group by grouping the dataframe according to business_type using groupby() and using transform() with sum()
+ - From here, group by again business_type then use max() of the running sum to get the maximum value per group","def solution(google_adwords_earnings):
+  import pandas as pd
+  import numpy as np
+ 
+  result = google_adwords_earnings.groupby(['business_type'])['adwords_earnings'].sum().reset_index()
+ 
+  return result"
+Product Transaction Count,,2,,"SELECT product_name,
+  count(transaction_id)
+ FROM excel_sql_inventory_data i
+ JOIN excel_sql_transaction_data t ON i.product_id = t.product_id
+ GROUP BY 1,
+  i.product_id
+ ORDER BY i.product_id",3,pandas.DataFrame,"- Use pd.merge(dataframe1, dataframe2, on = common_table_keys, how = left) to perform left join on the dataframes
+ - Filter out rows by selecting specific column/s from dataframe using [column_name] then select rows product_id of sql transaction that are not null using notnull()
+ - Group by product_id using groupby() and use transform() with count() to get the count or number of transactions per group or product
+ - Remove duplicates by using drop_duplicates() then use [[column_name]] to select desired columns to be kept","def solution(excel_sql_inventory_data,excel_sql_transaction_data):
+  import pandas as pd
+  import numpy as np
+ 
+  transaction = excel_sql_transaction_data[excel_sql_transaction_data['product_id'].notnull()]
+ 
+  merged = pd.merge(excel_sql_inventory_data,transaction, on = 'product_id', how = 'inner')
+ 
+  merged['count'] = merged.groupby(['product_name','product_id'])['transaction_id'].transform('count')
+ 
+  merged = merged.drop_duplicates(subset = 'product_id')
+  
+  result = merged.sort_values('product_id')[['product_name', 'count']]
+  return result"
+Number Of Acquisitions,,1,,"SELECT acquired_quarter,
+  count(id) AS cnt_acq
+ FROM crunchbase_acquisitions
+ GROUP BY acquired_quarter
+ ORDER BY cnt_acq DESC",3,pandas.DataFrame,"- Filter out rows by selecting specific column/s from dataframe using [column_name] then select rows acquirer_permalink that are not null using notnull()
+ - Sort according to acquirer_permalink by using sort_values() then remove duplicates using drop_duplicates(); 
+ - After which, create a column that countains the count per acquired_quarter by using np.arange(len(df))+1
+ - Use [[column_name]] to select desired columns to be kept and sort again along acquirer_permalink","def solution(crunchbase_acquisitions):
+  crunchbase_acquisitions['quarter_year'] = crunchbase_acquisitions['acquired_quarter'].dt.year.astype(str) + '-Q' + crunchbase_acquisitions['acquired_quarter'].dt.quarter.astype(str)
+  result = crunchbase_acquisitions.groupby('quarter_year').size().to_frame('size').reset_index().sort_values('size', ascending = False)
+  return result"
+Ranking Hosts By Beds,"-- Rank each host based on the number of beds they have listed. The host with the most beds should be ranked 1 and the host with the least number of beds should be ranked last. Hosts that have the same number of beds should have the same rank but there should be no gaps between ranking values. A host can also own multiple properties. 
+ -- Output the host ID, number of beds, and rank from highest rank to lowest.",2,,"SELECT 
+  host_id, 
+  sum(n_beds) as number_of_beds,
+  DENSE_RANK() OVER(ORDER BY sum(n_beds) DESC) as rank
+ FROM airbnb_apartments
+ GROUP BY host_id
+ ORDER BY number_of_beds desc",2,pandas.DataFrame,"- Use .rank(method = 'dense', order) to compute for the numerical dense ranking in a certain order of the column values
+ - Use sort_values(column_name, order) to sort along a specified column","def solution(airbnb_apartments):
+  import pandas as pd
+  
+  result = airbnb_apartments.groupby('host_id')['n_beds'].sum().to_frame('number_of_beds').reset_index()
+  result['rank'] = result['number_of_beds'].rank(method = 'dense',ascending = False)
+  result = result.sort_values(by='rank')
+  
+  return result"
+Rank guests based on their ages,,1,- Use the combination of RANK() OVER() functions to order records by the age in descending order and retrieve the rank.,"SELECT 
+  guest_id,
+  RANK() OVER(ORDER BY age DESC)
+ FROM airbnb_guests",1,pandas.DataFrame,"- Use .rank(order) to compute for the numerical ranking in a certain order of the column values
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe
+ - Use sort_values(column_name, order) to sort along a specified column","def solution(airbnb_guests):
+  import pandas as pd
+  import numpy as np
+ 
+  airbnb_guests['rank'] = airbnb_guests['age'].rank(method='min', ascending = False)
+  result = airbnb_guests[['guest_id','rank']].sort_values('rank',ascending = True)
+  return result"
+Ranking Most Active Guests,"-- Rank guests based on the number of messages they've exchanged with the hosts. Guests with the same number of messages as other guests should have the same rank. Do not skip rankings if the preceding rankings are identical.
+ -- Output the rank, guest id, and number of total messages they've sent. Order by the highest number of total messages first.",2,,"SELECT 
+  DENSE_RANK() OVER(ORDER BY sum(n_messages) DESC) as ranking, 
+  id_guest, 
+  sum(n_messages) as sum_n_messages
+ FROM airbnb_contacts
+ GROUP BY id_guest
+ ORDER BY sum_n_messages DESC",2,pandas.DataFrame,- You're going to want to use a ranking function to find the ranks and set the method to 'dense' so that the rankings don't skip.,"def solution(airbnb_contacts):
+  import pandas as pd
+  import numpy as np
+ 
+  df= airbnb_contacts.groupby('id_guest')['n_messages'].sum().reset_index().sort_values(['n_messages','id_guest'],ascending=[False,True])
+  df['ranking'] = df.n_messages.rank(method='dense',ascending=False).astype(int)
+  my_column = df.pop('ranking')
+  df.insert(0, my_column.name, my_column)
+  result=df
+  return result"
+Number Of Units Per Nationality,"-- Find the number of apartments per nationality that are owned by people under 30 years old. 
+ 
+ -- Output the nationality along with the number of apartments.
+ 
+ -- Sort records by the apartments count in descending order.",2,"- Use the COUNT() function to count units.
+ - Use DISTINCT to remove duplicates.
+ - Use INNER JOIN on host id to combine records from datasets.
+ - Use the WHERE clause to find records with the age column value less than 30 and to filter unit type by apartment.
+ - Group records by hosts' nationality.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Many entries:** A person can own one or more properties","SELECT 
+  nationality,
+  count(distinct unit_id) as apartment_count
+ FROM airbnb_units apartment 
+ INNER JOIN airbnb_hosts host 
+  ON apartment.host_id = host.host_id 
+ WHERE host.age < 30 
+ AND unit_type = 'Apartment'
+ GROUP BY host.nationality 
+ ORDER BY apartment_count DESC",1,pandas.DataFrame,"- Perform Inner Join using pd.merge(dataframe1, dataframe2, on = common_table_keys)
+ - Select specific column/s from dataframe using [column_name] then filter rows with values less than '<' 30
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements per group
+ - Use .nunique() to remove duplicates
+ - Convert the resulting object to a dataframe using to_frame()
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Many entries:** A person can own one or more properties","def solution(airbnb_units, airbnb_hosts):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(airbnb_units, airbnb_hosts, on='host_id')
+  merged = merged[(merged['age'] < 30) &(merged['unit_type']=='Apartment')]
+  result = merged.groupby(['nationality'])['unit_id'].nunique().to_frame(
+  'apartment_count').reset_index().sort_values('apartment_count')
+ 
+  return result"
+Find the number of Yelp businesses that sell pizza,,1,"- Use the COUNT() function to count the number of businesses.
+ - Use the WHERE clause to find records that contain the string pattern '%Pizza%' in the categories column value.","SELECT 
+  count(*) 
+ FROM yelp_business 
+ WHERE categories ilike '%Pizza%'",1,,"- Use str.contains(pattern) to check if the value is contained within a string
+ - Get the count of rows using len(dataframe)","def solution(yelp_business):
+  import pandas as pd
+  import numpy as np
+ 
+  pizza = yelp_business[yelp_business['categories'].str.contains('Pizza', case = False)]
+  result = len(pizza)
+  return result"
+Workers With The Highest And Lowest Salaries,"-- You have been asked to find the employees with the highest and lowest salary.
+ 
+ -- Your output should include the employee's ID, salary, and department, as well as a column `salary_type` that categorizes the output by:
+ 
+ - 'Highest Salary' represents the highest salary
+ - 'Lowest Salary' represents the lowest salary",2,"- Create two rank functions, one for the highest and one for the the lowest salary.
+ - Filter results by their rank.
+ - Create column `salary_type` and assign the correct labels to the corresponding salaries, for example in PostgreSQL use a `CASE` statement and in Python assign labels by filtering.
+ 
+ ### Edge Cases To Consider:
+ 
+ - **Ties in ranking:** Your solution should account for the possibility that more than one person can have the highest or lowest salary.","WITH cte AS
+  (SELECT *,
+  RANK() OVER(
+  ORDER BY salary) AS lowest_sal,
+  RANK() OVER(
+  ORDER BY salary DESC) AS highest_sal
+  FROM worker)
+ SELECT worker_id,
+  salary,
+  department,
+  CASE
+  WHEN highest_sal = 1 THEN 'Highest Salary'
+  ELSE 'Lowest Salary'
+  END AS salary_type
+ FROM cte
+ WHERE lowest_sal = 1
+  OR highest_sal = 1",2,pandas.DataFrame,"- Create two rank functions, one for the highest and one for the the lowest salary.
+ - Filter results by their rank.
+ - Create column `salary_type` and assign the correct labels to the corresponding salaries, for example in PostgreSQL use a `CASE` statement and in Python assign labels by filtering.
+ 
+ ### Edge Cases To Consider:
+ 
+ - **Ties in ranking:** Your solution should account for the possibility that more than one person can have the highest or lowest salary.","def solution(worker):
+  import pandas as pd
+  import numpy as np
+ 
+  worker[""highest_sal""] = worker[""salary""].rank(method=""dense"", ascending=False)
+  worker[""lowest_sal""] = worker[""salary""].rank(method=""dense"", ascending=True)
+  worker_sal = worker.loc[
+  (worker[""lowest_sal""] == 1) | (worker[""highest_sal""] == 1), :
+  ]
+  worker_sal.loc[worker_sal[""highest_sal""] == 1, ""salary_type""] = ""Highest Salary""
+  worker_sal.loc[worker_sal[""lowest_sal""] == 1, ""salary_type""] = ""Lowest Salary""
+  result = worker_sal[[""worker_id"", ""salary"", ""department"", ""salary_type""]]
+ 
+  return result"
+Find matching reviewers in a way that each host is paired with a matching guest based on the given review scores,"-- Connect the hosts and guests based on the score they gave in the review. It's important that the score of them both is equal (e.g. they both gave the rating=5). The property they gave rating for (or anything else) does not need to match, only the score.
+ 
+ -- Output host id, guest id, and the corresponding review score. Present distinct review scores only.
+ -- Order recording by review score in descending order.",3,"- Use two inner queries to find review scores given by each guest and host reviewer.
+ - Guest reviewers have the value of 'guest' for the from_type column whereas host reviewers have the value of 'host'.
+ - Use INNER JOIN on the review score to combine the results of both queries.
+ - Use an outer query to output the desired result.
+ - Use DISTINCT on the review score to output single record for each review score.","SELECT
+  DISTINCT ON (review_score)
+ 
+  host_id,
+  guest_id,
+  guests.review_score
+ FROM
+  (SELECT
+  from_user AS guest_id,
+  review_score
+  FROM
+  airbnb_reviews
+  WHERE
+  from_type = 'guest') guests
+ INNER JOIN
+  (SELECT
+  from_user AS host_id,
+  review_score
+  FROM
+  airbnb_reviews
+  WHERE
+  from_type = 'host') hosts
+ ON
+  guests.review_score = hosts.review_score
+ ORDER BY
+  review_score DESC",3,pandas.DataFrame,"- Filter out rows by selecting specific column/s from dataframe using [column_name] then select rows under from_type that are equal to ""=="" 'host'
+ - In another variable, Filter out rows by selecting specific column/s from dataframe using [column_name] then select rows under from_type that are equal to ""=="" 'guest'
+ - Perform inner join by using pd.merge(guests,hosts, left_on = guest_reviewscore, right_on = review_score)
+ - Use drop_duplicates(column_name) to get distinct values in the specified column 
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order 
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe","def solution(airbnb_reviews):
+  import pandas as pd
+  import numpy as np
+  
+  hosts = airbnb_reviews[airbnb_reviews['from_type'] == 'host'][['from_user','review_score']].rename(columns = {'from_user':'host_id'})
+  guests = airbnb_reviews[airbnb_reviews['from_type'] == 'guest'][['from_user','review_score']].rename(columns = {'from_user':'guest_id','review_score':'g_review_score'})
+  merged_df = pd.merge(guests,hosts,left_on = 'g_review_score', right_on = 'review_score')
+  result = merged_df.drop_duplicates(subset = 'review_score').sort_values('g_review_score', ascending = False)[['host_id', 'guest_id', 'g_review_score']].rename(columns = {'g_review_score':'review_score'})
+  return result"
+Gender With Generous Reviews,-- Write a query to find which gender gives a higher average review score when writing reviews as guests. Use the `from_type` column to identify guest reviews. Output the gender and their average review score.,1,"- JOIN the two tables together and filter for 'guest' in the `from_type` column to find guest reviews only
+ - Find the average review based on gender 
+ - ORDER BY the average review with the highest average review listed first
+ - LIMIT 1 to find the gender with the highest average review score
+ - Output only the gender and average review score","SELECT g.gender,
+  AVG(review_score) AS avg_score
+ FROM airbnb_reviews r
+ INNER JOIN airbnb_guests g ON r.from_user = g.guest_id
+ WHERE r.from_type = 'guest'
+ GROUP BY g.gender
+ ORDER BY avg_score DESC
+ LIMIT 1",1,pandas.Series,"- Perform inner join using pd.merge(dataframe1, dataframe2, on = common key)
+ - Filter specific column/s from dataframe using [column_name] then select rows with values equal to â€˜==â€™ guest
+ - Use .groupby(column_name) on gender to group the dataframe about the specifed column and use mean() to get the average per group; Convert the resulting object to a dataframe using to_frame('column_name')
+ - Select the gender with the highest average score using max() and ['column_name'] to return only the gender column","def solution(airbnb_reviews,airbnb_guests):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(airbnb_reviews,airbnb_guests, left_on = 'from_user', right_on = 'guest_id')
+  merged = merged[merged['from_type'] == 'guest']
+  group = merged.groupby(['gender'])['review_score'].mean().to_frame('avg_score').reset_index()
+  result = group[group['avg_score'] == group['avg_score'].max()]
+  return result"
+Find the top 5 cities with the most 5 star businesses,"-- Find the top 5 cities with the most 5-star businesses. Output the city name along with the number of 5-star businesses.
+ -- In the case of multiple cities having the same number of 5-star businesses, use the ranking function returning the lowest rank in the group and output cities with a rank smaller than or equal to 5.",2,"- Use the COUNT() function to count businesses.
+ - Use the WHERE clause to find records with 5 stars.
+ - Group records by the city.
+ - Use the RANK() function to rank the cities based on the number of businesses.
+ - Output cities with rank smaller than or equal to 5.","WITH cte_5_stars AS
+  (SELECT city,
+  count(*) AS count_of_5_stars,
+  rank() over(
+  ORDER BY count(*) DESC) AS rnk
+  FROM yelp_business
+  WHERE stars = 5
+  GROUP BY 1)
+ SELECT city,
+  count_of_5_stars
+ FROM cte_5_stars
+ WHERE rnk <= 5
+ ORDER BY count_of_5_stars DESC",2,pandas.DataFrame,"- Select specific column/s from dataframe using [column_name] then select rows with values equal to â€˜==â€™ 5
+ - Use .groupby(column_name) to group the dataframe about the specifed column then use count() to get the number of values per group
+ - Convert the resulting object to a dataframe using to_frame()
+ - Use rank and sort in descending order to get top 5 cities with most 5 star businesses","def solution(yelp_business):
+  import pandas as pd
+  import numpy as np
+  
+  stars = yelp_business[yelp_business['stars'] == 5]
+  stars = stars.groupby(['city'])['stars'].count().to_frame('count_of_5_stars').reset_index()
+  stars['rank'] = stars['count_of_5_stars'].rank(method='min', ascending=False)
+  result = stars[stars['rank'] <= 5][['city', 'count_of_5_stars']].sort_values('count_of_5_stars', ascending = False)
+ 
+  return result"
+Find countries that are in winemag_p1 dataset but not in winemag_p2,,2,"- Use two queries to find distinct country names present in both datasets.
+ - Filter out records from the winemag_p1 dataset with NULL values for the country column.
+ - Filter out records from the winemag_p2 dataset with empty (' ') values for the country column.
+ - Use EXCEPT to combine results and get the desired output.","SELECT DISTINCT country
+ FROM winemag_p1
+ WHERE country IS NOT NULL
+ EXCEPT
+ SELECT country
+ FROM winemag_p2
+ ORDER BY country ASC",3,pandas.DataFrame,"- For Both dataframes, clean the country column by removing the null values using notnull() and empty strings
+ - For both, select only the country column using [[column_name]] then apply drop_duplicates() to return only distinct country values
+ - Perform a left join using pd.merge(), eliminating duplicates in df2 so that each row of df1 joins with exactly 1 row of df2. Use the parameter indicator to return an extra column indicating which table the row was from.
+ - Filter out rows by selecting specific column/s from dataframe using [column_name] then select rows under '_merge' to be equal to '==' left_only. Filter the columns to return only the country
+ - Use sort_values() to sort along country","def solution(winemag_p1,winemag_p2):
+  import pandas as pd
+  import numpy as np
+ 
+ 
+  p2 = winemag_p2[winemag_p2['country'].notnull()][['country']].drop_duplicates()
+  p1 = winemag_p1[winemag_p1['country'].notnull()][['country']].drop_duplicates()
+  df_all = p1.merge(p2.drop_duplicates(), on=['country'], 
+  how='left', indicator=True)
+  result = df_all[df_all['_merge'] == 'left_only'][['country']].sort_values('country')
+  return result"
+Make a pivot table to find the highest payment in each year for each employee,"-- Make a pivot table to find the highest payment in each year for each employee.
+ -- Find payment details for 2011, 2012, 2013, and 2014. 
+ -- Output payment details along with the corresponding employee name.
+ -- Order records by the employee name in ascending order",3,"- Use an inner query to find the total pay in each year for each employee.
+ - Use the formula CASE WHEN ... THEN ... ELSE 0 END.
+ - Use the MAX() function in an outer query to find the highest total payment for each year.
+ - Group records by the employee name.","-- Make a pivot table where we can see how well the employees fared for each year. Rows are employees while columns are years. Values are totalpay. The required years are 2011, 2012, 2013 and 2014.
+ -- Table: sf_public_salaries
+ 
+ 
+ SELECT
+  employeename,
+  max(pay_2011) AS pay_2011,
+  max(pay_2012) AS pay_2012,
+  max(pay_2013) AS pay_2013,
+  max(pay_2014) AS pay_2014
+ FROM
+  (SELECT
+  employeename,
+  
+  CASE 
+  WHEN year = 2011
+  THEN totalpay
+  ELSE 0
+  END AS pay_2011,
+  
+  CASE 
+  WHEN year = 2012
+  THEN totalpay
+  ELSE 0
+  END AS pay_2012,
+  
+  CASE 
+  WHEN year = 2013
+  THEN totalpay
+  ELSE 0
+  END AS pay_2013,
+  
+  CASE 
+  WHEN year = 2014
+  THEN totalpay
+  ELSE 0
+  END AS pay_2014
+  FROM sf_public_salaries) pmt
+ GROUP BY
+  employeename
+ ORDER BY 
+  employeename",3,pandas.DataFrame,"- Define or create a list containing the years to select then use .isin(list_of_years) to filter rows if it is in the defined list
+ - Clean the employeename before grouping by applying uppercase to all values using str.upper()
+ - Pivot the dataframe using pd.pivot_table with employeename as the index, year as column, totalpay as the values, and specify the aggfunc to 'first'
+ - Use along with it fillna(0) to relace null values with 0 
+ - Clean resulting multilevel indexes by applying reset_index()","def solution(sf_public_salaries):
+  import pandas as pd
+  import numpy as np
+ 
+  years = [2011,2012,2013,2014]
+  year_range = sf_public_salaries[sf_public_salaries['year'].isin(years)]
+  year_range['employeename'] = year_range['employeename'].str.upper()
+  result = year_range.pivot_table(index=['employeename'],columns='year', values = 'totalpay', aggfunc='first').fillna(0).reset_index()
+  result.columns.name = None
+  result = result
+  return result"
+Average Weight of Medal-Winning Judo,-- Find the average weight of medal-winning Judo players of each team with a minimum age of 20 and a maximum age of 30. Consider players at the age of 20 and 30 too. Output the team along with the average player weight.,2,"- Use the AVG() function to find the average value.
+ - Judo players have the value of 'Judo' for the sport column.
+ - Consider records whose medal column is not null.
+ - Use the HAVING clause combined with MIN() and MAX() functions to set lower and upper bounds of the desired age category respectively.","SELECT team,
+  avg(weight) AS average_player_weight
+ FROM olympics_athletes_events
+ WHERE sport = 'Judo'
+  AND medal IS NOT NULL
+ GROUP BY team
+ HAVING min(age) >= 20
+ AND max(age) <= 30",2,pandas.DataFrame,"- Select specific column/s from dataframe using [column_name] then select rows with values equal to â€˜==â€™ Judo and medals without the null values using notnull()
+ - Filter based on age using either logical operators or the between function but make sure to include both the age of 20 and 30. 
+ - Use a groupby() and reset the index so that the team values are not in the index","def solution(olympics_athletes_events):
+  import pandas as pd
+  import numpy as np
+ 
+  judo = olympics_athletes_events[(olympics_athletes_events['sport'] == 'Judo') & (olympics_athletes_events['medal'].notnull()) & olympics_athletes_events['age'].between(20,30) ]
+  result = judo.groupby('team')['weight'].mean().reset_index()
+  result
+  return result"
+Find players who participated in the Olympics representing more than one team,,1,"- Multi-team players have value in the format of 'country1/country2' for the team column.
+ - Use the ILIKE operator on the column team for the string pattern '%/%' to find players who represented more than one team.","SELECT
+  name, 
+  team,
+  games, 
+  sport,
+  medal
+ FROM olympics_athletes_events
+ WHERE 
+  team ILIKE '%/%'",2,pandas.DataFrame,"- Select all rows containing ""/"", which represents multiple teams, using str.contains(pattern) to return values containing the pattern
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe","def solution(olympics_athletes_events):
+  import pandas as pd
+  import numpy as np
+ 
+  result = olympics_athletes_events[olympics_athletes_events['team'].str.contains('/')][['name','team','games','sport','medal']]
+  return result"
+No Order Customers,"-- We have a table with customer information and a table with customer orders. Identify the customers that did not place an order between 2019-02-01 to 2019-03-01.
+ 
+ -- In your answer, include both the customers that (1) only placed an order outside the date range and (2) customers that didn't place an order at all. Do not include customers that placed an order inside the range. 
+  -- - Scenario 1: If a customer placed an order outside the date range but didn't place an order inside the range, include that customer in your output. 
+  -- - Scenario 2: If a customer never places an order in or out of the range, include that customer in the output. 
+ 
+ -- Output the customer's first names.",2,"- Use an inner query to find a customer who placed records during the given date range.
+ - Use the WHERE clause followed by BETWEEN to find desired records.
+ - Use an outer query with WHERE clause to find customers who didn't place orders.","SELECT customers.first_name
+ FROM customers
+ WHERE customers.id NOT IN
+  (SELECT orders.cust_id
+  FROM orders
+  WHERE order_date BETWEEN '2019-02-01' AND '2019-03-01' )",2,pandas.DataFrame,"- Perform left join on customers, orders by using pd.merge(dataframe1, dataframe2, on = common_table_keys, how = 'left') to determine the orders per customer
+ - Convert order_date to datetime format using pd.to_datetime 
+ - Filter out row values that are not in the specified period by using between(first_day, last_day) and Tilde '~' to select the negative of the selection time period 
+ - Use drop_duplicates(column_name) to get distinct values in the specified column 
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe","def solution(customers, orders):
+  import pandas as pd
+  import numpy as np
+ 
+  merge = pd.merge(customers,orders, left_on = 'id', right_on = 'cust_id', how = 'left')
+  merge['order_date'] = merge['order_date'].apply(pd.to_datetime)
+  merge[~merge['first_name'].isin(merge[merge['order_date'].between('2019-02-1','2019-03-1')]['first_name'])]['first_name'].drop_duplicates()
+  return result"
+Apple Product Counts,"-- Find the number of Apple product users and the number of total users with a device and group the counts by language. Assume Apple products are only MacBook-Pro, iPhone 5s, and iPad-air. Output the language along with the total number of Apple users and users with any device. Order your results based on the number of total users in descending order.",2,"- Use an INNER JOIN on user id to combine records of both tables.
+ - Use the formula COUNT(CASE WHEN ... THEN user_id ELSE NULL END) to find the number of Apple product users. 
+ - Each Apple product has the following values in the device column.
+  - MacBook-Pro : 'macbook pro'
+  - iPhone 5s : 'iphone 5s'
+  - iPad-air : 'ipad air'
+ - Use the IN operator to find records with Apple product names in the device column.","SELECT users.language,
+  COUNT (DISTINCT CASE
+  WHEN device IN ('macbook pro',
+  'iphone 5s',
+  'ipad air') THEN users.user_id
+  ELSE NULL
+  END) AS n_apple_users,
+  COUNT(DISTINCT users.user_id) AS n_total_users
+ FROM playbook_users users
+ INNER JOIN playbook_events EVENTS ON users.user_id = events.user_id
+ GROUP BY users.language
+ ORDER BY n_total_users DESC",3,pandas.DataFrame,"- Use pd.merge(dataframe1, dataframe2, on = common_table_keys) to perform inner join on the dataframes
+ - Create column containing 1 if apple device and 0 otherwise. If Else can be applied in a dataframe by using Indexing df[column == condition, 'column_output'] = result; Define or create a list containing the languages to select and use .isin(list_of_language) to filter rows if it is in the defined list
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use agg({column:operaton}) To aggregate or perform several operation to different columns","def solution(playbook_users, playbook_events):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(playbook_events, playbook_users, on=""user_id"")
+  mac_device = [""macbook pro"", ""iphone 5s"", ""ipad air""]
+  df = (
+  merged[merged[""device""].isin(mac_device)]
+  .groupby(""language"")[""user_id""]
+  .nunique()
+  .to_frame(""n_apple_users"")
+  )
+ 
+  result = (
+  merged.groupby([""language""])[""user_id""]
+  .nunique()
+  .rename(""n_total_users"")
+  .reset_index()
+  )
+ 
+  result.merge(df, how=""outer"", left_on=""language"", right_on=""language"").fillna(
+  0
+  ).sort_values(""n_total_users"", ascending=False)[
+  [""language"", ""n_apple_users"", ""n_total_users""]
+  ]
+ 
+  return result"
+MacBook Pro Events,,2,"- Use an INNER JOIN on user id to combine records of both tables.
+ - Use the COUNT() function to find the number of MacBook-Pro users.
+ - Users who are speaking Spanish have the value 'spanish' in the language column.
+ - Events performed in Argentina have the value 'Argentina' in the location column.
+ - Events performed on MacBook-Pro have value 'macbook pro' in the device column.
+ - Use the WHERE clause to find records that satisfy the language, location, and device requirements","SELECT
+  users.company_id,
+  users.language,
+  count(*) AS n_macbook_pro_events
+ FROM
+  playbook_users users
+ INNER JOIN
+  playbook_events events
+ ON
+  users.user_id = events.user_id
+ WHERE 
+  users.language != 'spanish' AND
+  events.location = 'Argentina' AND
+  events.device = 'macbook pro'
+ GROUP BY
+  users.company_id,
+  users.language",1,pandas.DataFrame,"- Use pd.merge(dataframe1, dataframe2, on = common_table_keys) to perform inner join on the dataframes
+  - Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements or count per group
+  - Convert the resulting object to dataframe by using to_frame('column_name') then reset_index()","def solution(playbook_events,playbook_users):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(playbook_events,playbook_users, on = 'user_id')
+  filtered_df = merged[(merged['language'] != 'spanish') & (merged['location'] == 'Argentina') & (merged['device'] == 'macbook pro')]
+  result = filtered_df.groupby(['company_id','language']).size().to_frame('n_events').reset_index()
+  return result"
+Number of Speakers By Language,,2,"- Take the location column values as country names.
+ - Use an INNER JOIN on user id to combine records of two tables.
+ - Use the COUNT() function to count the number of speakers.
+ - Group records by location and the language.","SELECT events.location,
+  users.language,
+  count(DISTINCT users.user_id) AS n_speakers
+ FROM playbook_users users
+ INNER JOIN playbook_events EVENTS ON users.user_id = events.user_id
+ GROUP BY events.location,
+  users.language
+ ORDER BY events.location ASC,
+  n_speakers DESC",1,pandas.DataFrame,"- Use pd.merge(dataframe1, dataframe2, on = common_table_keys) to perform inner join on the dataframes
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements or count per group
+ - Convert the resulting object to a dataframe using to_frame()
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(playbook_events, playbook_users):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(playbook_events, playbook_users, on=""user_id"")
+  result = (
+  merged.groupby([""location"", ""language""])[""user_id""]
+  .nunique()
+  .rename(""n_speakers"")
+  .reset_index()
+  .sort_values([""location"", ""n_speakers""], ascending=[True, False])
+  )
+  return result"
+Find the average height of players in the position 'RB' by division,,2,"- Use an INNER JOIN to combine records on school name and the player position 'RB'.
+ - Group records by the division.","SELECT
+  teams.division,
+  avg(height) AS average_height
+ FROM
+  college_football_teams teams 
+ INNER JOIN
+  college_football_players players
+ ON
+  teams.school_name = players.school_name AND
+  players.position = 'RB'
+ GROUP BY
+  teams.division",2,pandas.Series,"- Use pd.merge(dataframe1, dataframe2, on = common_table_keys) to perform inner join on the dataframes
+ - Convert the height from string to integer using astype(int)
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements or count per group","def solution(college_football_teams,college_football_players):
+  import pandas as pd
+  import numpy as np
+ 
+  merged = pd.merge(college_football_teams,college_football_players, on = 'school_name')
+  RB = merged[merged['position'] == 'RB']
+  RB['height'] = RB['height'].astype(int)
+  result = RB.groupby(['division'])['height'].mean()
+  return result"
+Even-numbered IDs Hired in June,,1,"- Extract the month from `joining_date` and filter to June(6).
+ - Filter to records divisible by 2, for example in PostgreSQL use `MOD` and in Python use `% 2`.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Date filter:** Results must be specifically for the month of June.","SELECT *
+ FROM worker
+ WHERE mod(worker_id, 2) = 0
+  AND EXTRACT(MONTH
+  FROM joining_date) = 6",1,pandas.DataFrame,"- Extract the month from `joining_date` and filter to June(6).
+ - Filter to records divisible by 2, for example in PostgreSQL use `MOD` and in Python use `% 2`.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Date filter:** Results must be specifically for the month of June.","def solution(worker):
+  import pandas as pd
+  import numpy as np
+  import datetime as dt
+ 
+  worker[""joining_date""] = pd.to_datetime(worker[""joining_date""])
+  worker[""joining_month""] = worker[""joining_date""].dt.month
+ 
+  june_df = worker.loc[worker[""joining_month""] == 6, :]
+  result = june_df.loc[june_df[""worker_id""] % 2 != 1, :].drop('joining_month',axis = 1)
+ 
+ 
+ return result"
+Odd-numbered ID's Hired in February,,1,"- Extract the month from `joining_date` and filter to February(2).
+ - Filter to records not divisible by 2, for example in PostgreSQL use `MOD` and in Python use `% 2`.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Date filter:** Results must be specifically for the month of June.","SELECT *
+ FROM worker
+ WHERE mod(worker_id, 2) <> 0
+  AND EXTRACT(MONTH
+  FROM joining_date) = 2;",1,pandas.DataFrame,"- Extract the month from `joining_date` and filter to February(2).
+ - Filter to records not divisible by 2, for example in PostgreSQL use `MOD` and in Python use `% 2`.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Date filter:** Results must be specifically for the month of June.","def solution(worker):
+  import pandas as pd
+  import numpy as np
+  import datetime as dt
+ 
+  worker[""joining_date""] = pd.to_datetime(worker[""joining_date""])
+  worker[""joining_month""] = worker[""joining_date""].dt.month
+ 
+  feb_df = worker.loc[worker[""joining_month""] == 2, :]
+  result = feb_df[feb_df[""worker_id""] % 2 == 1].drop('joining_month',axis = 1)
+ 
+ 
+ return result"
+Users By Avg Session Time,"-- Calculate each user's average session time. A session is defined as the time difference between a page_load and page_exit. For simplicity, assume an user has only 1 session per day and if there are multiple of the same events in that day, consider only the latest page_load and earliest page_exit. Output the user_id and their average session time.",3,"- Select from the table only events that are crucial for the analysis: page load and exit
+ - Consider different cases that appear in the data set
+ - Group the sessions by date and find the minimum session time since we're only considering the earliest page exit and latest page load","with all_user_sessions as (
+  SELECT t1.user_id,
+  min(t2.timestamp::TIMESTAMP - t1.timestamp::TIMESTAMP) session_duration
+  FROM facebook_web_log t1
+  JOIN facebook_web_log t2 ON t1.user_id = t2.user_id
+  WHERE t1.action = 'page_load' 
+  AND t2.action = 'page_exit' 
+  AND t2.timestamp > t1.timestamp
+  GROUP BY 1) 
+ SELECT user_id,
+  avg(session_duration)
+ FROM all_user_sessions
+ GROUP BY 1",2,pandas.DataFrame,,"def solution(facebook_web_log):
+  import pandas as pd 
+  import datetime as dt
+  
+  df = pd.merge(facebook_web_log.loc[facebook_web_log['action'] == 'page_load', ['user_id', 'timestamp']],
+  facebook_web_log.loc[facebook_web_log['action'] == 'page_exit', ['user_id', 'timestamp']],
+  how='left', on='user_id', suffixes=['_load', '_exit']).dropna()
+  df['duration'] = pd.to_datetime(df['timestamp_exit']) - pd.to_datetime(df['timestamp_load'])
+  df = df[df['duration'] > '0 days']
+  df['timestamp_load_rounded'] = pd.to_datetime(df['timestamp_load']).dt.floor('h')
+  result = df.groupby(['user_id', 'timestamp_load_rounded'])['duration'].min().reset_index().groupby('user_id')[
+  'duration'].mean(numeric_only=False).reset_index().sort_values(by='duration', ascending=False)
+  
+  return result"
+Spam Posts,"-- Calculate the percentage of spam posts in all viewed posts by day. A post is considered a spam if a string ""spam"" is inside keywords of the post. Note that the facebook_posts table stores all posts posted by users. The facebook_post_views table is an action table denoting if a user has viewed a post.",2,,"SELECT spam_summary.post_date,
+  (n_spam/n_posts::float)*100 AS spam_share
+ FROM
+  (SELECT post_date,
+  sum(CASE
+  WHEN v.viewer_id IS NOT NULL THEN 1
+  ELSE 0
+  END) AS n_posts
+  FROM facebook_posts p
+  JOIN facebook_post_views v ON p.post_id = v.post_id
+  GROUP BY post_date) posts_summary
+ LEFT JOIN
+  (SELECT post_date,
+  sum(CASE
+  WHEN v.viewer_id IS NOT NULL THEN 1
+  ELSE 0
+  END) AS n_spam
+  FROM facebook_posts p
+  JOIN facebook_post_views v ON p.post_id = v.post_id
+  WHERE post_keywords ilike '%spam%'
+  GROUP BY post_date) spam_summary ON spam_summary.post_date = posts_summary.post_date",2,pandas.DataFrame,"- Create a separate column in order to mark spam posts
+ - Use inner merges to find spam posts and the number of total viewed posts in order to calculate the spam viewed ratio per day.
+ - Group by with two operations at time: sum of spam (assuming spam is 1 and non-spam is 0) and count using agg method with dictionary as argument","def solution(facebook_posts, facebook_post_views):
+  import pandas
+ 
+  facebook_posts['is_spam'] = facebook_posts.post_keywords.str.contains('spam')
+  facebook_posts['is_spam'] = facebook_posts['is_spam'].apply(lambda x: 1 if x == True else 0)
+  result = facebook_post_views.merge(facebook_posts[['post_id', 'post_date', 'is_spam']], how='left', on='post_id')
+  result = result.groupby('post_date').agg({'is_spam': ['sum', 'count']}).reset_index()
+  result.columns = ['post_date', 'spam_sum', 'post_count']
+  result['spam_share'] = (result.spam_sum / result.post_count)*100
+  result.drop(['spam_sum', 'post_count'], axis=1, inplace=True)
+  result
+  return result"
+Requests Acceptance Rate,-- Find the acceptance rate of requests which is defined as the ratio of accepted contacts vs all contacts. Multiply the ratio by 100 to get the rate.,2,"- You'll need to distinguish between accepted and not accepted contacts
+ - Count the accepted contacts and divide by the total contacts to calculate the ratio","SELECT 100.0*SUM(CASE
+  WHEN ts_accepted_at IS NOT NULL THEN 1
+  ELSE 0
+  END)/COUNT(*) acceptance_rate
+ FROM airbnb_contacts",2,,"- You'll need to distinguish between accepted and not accepted contacts
+ - Count the accepted contacts and divide by the total contacts to calculate the ratio","def solution(airbnb_contacts):
+  import pandas
+ 
+  result = 100* airbnb_contacts['ts_accepted_at'].count() / airbnb_contacts.shape[0]
+  
+  return result"
+Highest Crime Rate,,1,"- Group records by the day of the week.
+ - Use the COUNT() function to count the number of occurrences.","SELECT
+  day_of_week,
+  count(category) as n_occurences
+ FROM sf_crime_incidents_2014_01
+ GROUP BY
+  day_of_week
+ ORDER BY
+  n_occurences DESC",2,pandas.DataFrame,"- Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements in the specified column
+ - Convert the resulting object to a dataframe using to_frame()
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(sf_crime_incidents_2014_01):
+  import pandas as pd
+  import numpy as np
+ 
+  result = sf_crime_incidents_2014_01.groupby(['day_of_week']).size().to_frame('n_occurences').reset_index().sort_values('n_occurences', ascending = False)
+  return result"
+Business Name Lengths,-- Find the number of words in each business name. Avoid counting special symbols as words (e.g. &). Output the business name and its count of words.,3,,"SELECT DISTINCT business_name,
+  array_length(regexp_split_to_array(b_name, '\s+'), 1) AS word_count
+ FROM
+  (SELECT business_name,
+  regexp_replace(business_name, '[^a-zA-Z0-9 ]', '', 'g') AS b_name
+  FROM sf_restaurant_health_violations) AS sfr",2,pandas.DataFrame,"- Use drop_duplicates(column_name) to get distinct values in the specified column then convert the resulting object to a dataframe using to_frame()
+ - Split the address into words using str.split(), then count the number of words using str.len()
+ - Remove the special symbols using regex and the replace() method.","def solution(sf_restaurant_health_violations):
+  import pandas as pd
+  import numpy as np
+ 
+  result = sf_restaurant_health_violations['business_name'].drop_duplicates().to_frame('business_name')
+  result['business_name_clean'] = result['business_name'].replace('[^a-zA-Z0-9 ]','',regex=True)
+  result['name_word_count'] = result['business_name_clean'].str.split().str.len()
+  result = result[['business_name','name_word_count']]
+  return result"
+Find the number of inspections for each risk category by inspection type,,2,"- Risks can be categorized as 'NULL', 'Low Risk', 'Moderate Risk', and 'High Risk'.
+ - Use the CASE clause to identify risk categories.
+ - Use the SUM() function to count the number of occurrences per each category.
+ - Use the COUNT() function to count the total number of inspections per each risk category.
+ - Use GROUP BY to group records base on the inspection type.","SELECT 
+  inspection_type,
+  
+  sum(CASE 
+  WHEN risk_category IS NULL THEN 1 ELSE 0
+  END
+  ) AS no_risk_results,
+  
+  sum(CASE 
+  WHEN risk_category = 'Low Risk' THEN 1 ELSE 0
+  END
+  ) AS low_risk_results,
+  
+  
+  sum(CASE 
+  WHEN risk_category = 'Moderate Risk' THEN 1 ELSE 0
+  END
+  ) AS medium_risk_results,
+  
+  sum(CASE 
+  WHEN risk_category = 'High Risk' THEN 1 ELSE 0
+  END
+  ) AS high_risk_results,
+  
+  count(*) AS total_inspections
+ FROM sf_restaurant_health_violations
+ GROUP BY 
+  inspection_type
+ ORDER BY
+  total_inspections DESC",3,pandas.DataFrame,"- Convert columns to numeric using df.astype(int)
+ - To aggregate several columns with different operations, group dataframe and use agg({column:operaton})
+ - Use sort_values(column_name, order) to sort along a specified column; Set order to False to display the printed values in descending order","def solution(sf_restaurant_health_violations):
+  import pandas as pd
+  import numpy as np
+ 
+  sf_restaurant_health_violations['no_risk_results'] = (sf_restaurant_health_violations.risk_category.isnull()).astype(int)
+  sf_restaurant_health_violations['low_risk_results'] = (sf_restaurant_health_violations.risk_category == 'Low Risk').astype(int)
+  sf_restaurant_health_violations['medium_risk_results'] = (sf_restaurant_health_violations.risk_category == 'Moderate Risk').astype(int)
+  sf_restaurant_health_violations['high_risk_results'] = (sf_restaurant_health_violations.risk_category == 'High Risk').astype(int)
+  sf_restaurant_health_violations = sf_restaurant_health_violations.groupby('inspection_type').agg({'no_risk_results':'sum', 'low_risk_results':'sum','medium_risk_results':'sum','high_risk_results':'sum'}).reset_index()
+  sf_restaurant_health_violations['total_inspections'] = sf_restaurant_health_violations.loc[:, 'no_risk_results':'high_risk_results'].sum(axis = 1)
+  result = sf_restaurant_health_violations.sort_values('total_inspections', ascending = False)
+  return result"
+Inspections Per Facility,"-- Find the average number of inspections per facility across all corporations. 
+ -- Output the result along with the corresponding owner_name, total number of inspections and the count of unique facility names.
+ -- Apply double sort to the result:
+  - based on the owner_name in ascending order and 
+  - based on the average inspections per facility in descending order.",2,"- Use the COUNT() function to count the total number of inspections and the number of unique facility names.
+ - Divide the total number of inspections by the number of unique facility names to find the average number of inspections.","SELECT
+  owner_name,
+  count(*) AS n_inspections,
+  count(distinct facility_name) AS n_facilities,
+  count(*)::float / count(distinct facility_name)::float AS avg_inspections_per_facility
+ FROM 
+  los_angeles_restaurant_health_inspections
+ GROUP BY 
+  owner_name
+ ORDER BY 
+  owner_name asc,
+  avg_inspections_per_facility DESC",3,pandas.DataFrame,"- To aggregate several columns with different operations, group dataframe and use agg({column:operaton}) then reset_index()
+ - Use nunique() to get the count of distinct values in a group","def solution(los_angeles_restaurant_health_inspections):
+  import pandas as pd
+  import numpy as np
+  
+  count_facilities=los_angeles_restaurant_health_inspections.groupby([""owner_name""])['facility_name'].agg(n_inspections = 'count',n_facilities = 'nunique').reset_index()
+  count_facilities['avg_inspections_per_facility'] = count_facilities['n_inspections']/count_facilities['n_facilities']
+  avg_facilities = count_facilities.rename(columns = {'':'owner_name'})
+  result = avg_facilities.sort_values(['owner_name','avg_inspections_per_facility'], ascending = [True,False])
+  return result"
+Count the number of movies that Abigail Breslin nominated for oscar,,1,"- Use the COUNT() function to count the number of distinct movies.
+ - Search nominee column for the name 'Abigail Breslin'.","SELECT
+  count(distinct movie) AS n_movies_by_abi
+ FROM oscar_nominees
+ WHERE 
+  nominee = 'Abigail Breslin'",1,,"- Select specific column/s from dataframe using [column_anme] then select rows with values equal to â€˜==â€™ Abigail Breslin
+ - Get the count of distinct movies using nunique","def solution(oscar_nominees):
+  import pandas as pd
+  import numpy as np
+  
+  nominee = oscar_nominees[oscar_nominees['nominee'] == 'Abigail Breslin']
+  result = nominee.movie.nunique()
+  return result"
+Calculate Samantha's and Lisa's total sales revenue,,1,"- Use the SUM() function to calculate the total revenue.
+ - Use OR operator to find values corresponding to both 'Samantha' and 'Lisa'.","SELECT
+  sum(sales_revenue) AS total_revenue
+ FROM sales_performance
+ WHERE 
+  salesperson = 'Samantha' OR 
+  salesperson = 'Lisa'",1,,"- Select specific column/s from dataframe using [column_name] then select rows with values equal to â€˜==â€™ Samantha or Lisa
+ - Use OR '|' to check if all conditions are satisfied (True)
+ - Use .sum() to get the total","def solution(sales_performance):
+  import pandas as pd
+  import numpy as np
+ 
+  sam_and_lisa = sales_performance[(sales_performance['salesperson'] == 'Samantha') | (sales_performance['salesperson'] == 'Lisa')]#[['sales_revenue']]
+  total_rev = sam_and_lisa['sales_revenue'].sum()
+  return result"
+Bookings vs Non-Bookings,-- Display the average number of times a user performed a search which led to a successful booking and the average number of times a user performed a search but did not lead to a booking. The output should have a column named action with values 'does not book' and 'books' as well as a 2nd column named average_searches with the average number of searches per action. Consider that the booking did not happen if the booking date is null. Be aware that search is connected to the booking only if their check-in dates match.,2,,"SELECT CASE
+  WHEN c.ts_booking_at IS NOT NULL AND c.ds_checkin = s.ds_checkin THEN 'books'
+  ELSE 'does not book'
+  END AS action,
+  avg(n_searches) AS average_searches
+ FROM airbnb_searches s
+ LEFT JOIN (SELECT DISTINCT id_guest, ds_checkin, ts_booking_at FROM airbnb_contacts WHERE ts_booking_at IS NOT NULL) c ON s.id_user = c.id_guest AND s.ds_checkin = c.ds_checkin
+ GROUP BY 1",2,pandas.DataFrame,"- Perform left join by using pd.merge(dataframe1, dataframe2, on = common_table_keys)
+ - create a new column for actions and average searches
+ - If Else can be applied in a dataframe by using Indexing df[column == condition, 'column_output'] = result; specify the values of average_searches and actions based from ts_booking_at conditions
+ - Filter out specific rows under ts_booking_at that is null using .isnull(), likewise, notnull() returns all values that are not null
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use mean() to get the average
+ - Convert the resulting object to dataframe using to_frame() then reset_index()","def solution(airbnb_searches,airbnb_contacts):
+  import pandas as pd
+  import numpy as np
+ 
+  airbnb_contacts_distinct = airbnb_contacts[~airbnb_contacts.ts_booking_at.isna()][['id_guest', 'ds_checkin', 'ts_booking_at']].drop_duplicates()
+ 
+  df = pd.merge(airbnb_searches, airbnb_contacts_distinct, right_on = ['id_guest', 'ds_checkin'], left_on = ['id_user', 'ds_checkin'] , how='left')
+  df['action'] = df['ts_booking_at'].apply(lambda x: 'does not book' if pd.isnull(x) else 'books')
+  result = df.groupby(['action']).agg({'n_searches': 'sum', 'action': 'count'})
+  result['average_searches'] = result['n_searches'] / result['action']
+  result[['average_searches']].reset_index()"
+List first 5 entries of a joined contacts and searches tables,-- Find the first 5 rows by joining search details and contacts datasets.,1,,"SELECT 
+  *
+ FROM airbnb_searches search 
+ INNER JOIN airbnb_contacts contact 
+  ON search.id_user = contact.id_guest
+ LIMIT 5",1,pandas.DataFrame,"- Merge the dataframes using pd.merge(dataframe1,dataframe2, how = join_type, on = common_key)
+ - Limit rows to be printed by specifying n in head (n = 5)","def solution(airbnb_searches,airbnb_contacts):
+  import pandas as pd
+  import numpy as np
+ 
+  result = pd.merge(airbnb_searches, airbnb_contacts, how='left', left_on=['id_user'], right_on = ['id_guest']).head(5)
+  return result"
+Find the total number of searches for houses Westlake neighborhood with a TV,,1,"- Use ILIKE to check for the presence of a TV among the amenities. 
+ - Use %TV% as the search pattern.","SELECT 
+  count(*) AS n_searches
+ FROM airbnb_search_details
+ WHERE 
+  neighbourhood = 'Westlake' AND 
+  property_type = 'House' AND 
+  amenities LIKE '%TV%'",1,,"- Select specific column/s from dataframe using [column_anme] then select rows with values equal to â€˜==â€™ Westlake and House 
+ - Use AND '&' to check if both conditions are satisfied (True)
+ - Use str.contains(pattern) to check if the value is contained within a string
+ - Get the count of rows using len(dataframe)","def solution(airbnb_search_details):
+  import pandas as pd
+  import numpy as np
+ 
+  conditions = airbnb_search_details[(airbnb_search_details['neighbourhood'] == 'Westlake') & (airbnb_search_details['property_type'] == 'House') & (airbnb_search_details['amenities'].str.contains(""TV""))]
+  result = len(conditions)
+  return result"
+Number Of Custom Email Labels,,2,"- Use the COUNT() function to count the number of occurrences.
+ - Use INNER JOIN on id and label to combine records from each dataset.
+ - Apply the ILIKE operator on the label for the string pattern 'custom%'.
+ - Group records by the to_user and the label.","SELECT
+  to_user AS user_id,
+  label,
+  COUNT(*) AS n_occurences
+ FROM
+  google_gmail_emails e 
+ INNER JOIN
+  google_gmail_labels l
+ ON
+  e.id = l.email_id AND
+  l.label ILIKE 'custom%'
+ GROUP BY
+  to_user,
+  label",2,pandas.Series,"- Perform inner join by using df.merge(df2, on = common_table_keys)
+ - Use str.contains(pattern) to check if the value is contained within a string
+ - Use .groupby(column_name) to group the dataframe about the specifed column and use size() to get the number of elements in the specified column","def solution(google_gmail_emails,google_gmail_labels):
+  import pandas as pd
+  import numpy as np
+  
+  merged_df = pd.merge(google_gmail_emails,google_gmail_labels,left_on='id',right_on='email_id')
+  custom = merged_df[merged_df['label'].str.contains('custom', case = False)]
+  result = custom.groupby(['to_user','label']).size().reset_index()
+  return result"
+User Exile,-- Find the number of relationships that user with id == 1 is not part of.,1,- Use a CASE WHEN clause to filter out relationships with user id 1.,"SELECT
+  sum(CASE WHEN user1 <> 1 and user2 <> 1 THEN 1 ELSE 0 END) as user1_not_in_relationship
+ FROM facebook_friends",3,,"- Check if conditions are satisfied using operators (!=, ==, etc) then convert boolean results to numeric using df.astype(int)
+ - sum() to get the total or sum of a column","def solution(facebook_friends):
+  import pandas as pd
+  import numpy as np
+ 
+  facebook_friends['user1_not_in_relationship'] = ((facebook_friends.user1 != 1) & (facebook_friends.user2 != 1)) .astype(int)
+  result = facebook_friends['user1_not_in_relationship'].sum()
+  return result"
+Find the percentage of shipable orders,"-- Find the percentage of shipable orders.
+ -- Consider an order is shipable if the customer's address is known.",2,"- Use an inner query to return the order id along with an indication on whether the order is shipable or not.
+ - Use the formula CASE WHEN ... THEN False ELSE True END to indicate that each order is shipable or not.
+ - Use INNER JOIN to combine records from orders and customer datasets on the customer id.
+ - Use the formula 100 * SUM() :: NUMERIC / COUNT(*) in an outer query to find the desired final result.","SELECT
+  100 * SUM(CASE WHEN is_shipable THEN 1 ELSE 0 END) :: NUMERIC / COUNT(*) AS percent_shipable
+ FROM
+  (SELECT
+  o.id,
+  CASE WHEN address IS NULL THEN False ELSE True END AS is_shipable
+  FROM 
+  orders o
+  INNER JOIN
+  customers c
+  ON
+  o.cust_id = c.id) base",2,,"- Perform inner join by using df.merge(df2, on = common_table_keys)
+ - check address if rows are null values or not using notnull() then convert the resulting boolean to integer using astype()
+ - Place these values in a new column named is_shipable and get its sum using .sum()
+ - use len() to get the size or number of rows","def solution(orders,customers):
+  import pandas as pd
+  import numpy as np
+  
+  merged_df = pd.merge(orders,customers,left_on='cust_id',right_on='id')
+  merged_df['is_shipable'] = (merged_df.address.notnull()).astype(int)
+  result = 100 * (merged_df['is_shipable'].sum()/len(merged_df))
+  return result"
+Find the number of customers without an order,,2,"- Use the COUNT() function to count the number of customers.
+ - Use RIGHT OUTER JOIN on customre id to combine records from both datasets.
+ - Filter out records with the value of NULL for the cust_id column of the customers dataset.","SELECT
+  COUNT(*) AS n_customers_without_orders 
+ FROM 
+  orders o
+ RIGHT OUTER JOIN
+  customers c
+ ON
+  o.cust_id = c.id
+ WHERE
+  o.cust_id IS NULL",2,,"- Perform right outer join or right join by using df.merge(df2, on = common_table_keys, how = 'right')
+ - notnull() can be used to determine the non-missing values in the dataframe
+ - use len() to get the size or number of rows","def solution(orders,customers):
+  import pandas as pd
+  import numpy as np
+  
+  merged = pd.merge(orders,customers,left_on='cust_id',right_on='id',how='right')
+  null_cust = merged[merged['cust_id'].isnull()]
+  result = len(null_cust)
+  return result"
+Liked' Posts,,2,"- Use the COUNT() function with the DISTINCT to count the number of distinct posts.
+ - Use INNER JOIN on post id and reaction to combine records from both datasets.
+ - The Like reaction has the value of 'like' for the reaction column of the facebook_reactions dataset.","SELECT
+  COUNT(DISTINCT p.post_id) AS n_posts_with_a_like
+ FROM
+  facebook_posts p
+ INNER JOIN
+  facebook_reactions r 
+ ON
+  p.post_id = r.post_id AND 
+  r.reaction = 'like'",2,,"- Select specific column/s from dataframe using [column_name] then select rows with values equal to â€˜==â€™ like
+ - Perform inner join by using df.merge(df2, on = common_table_keys)
+ - use nunique() to get the number of distinct observations per group or specified axis","def solution(facebook_reactions,facebook_posts):
+  import pandas as pd
+  import numpy as np
+  
+  likes = facebook_reactions[facebook_reactions['reaction'] == 'like'][['post_id']]
+  merged_df = pd.merge(likes,facebook_posts,on='post_id')
+  result = merged_df['post_id'].nunique()
+  return result"
+Find all posts which were reacted to with a heart,,1,"- Use DISTINCT to eliminate duplicate posts.
+ - Use INNER JOIN to combine records of both datasets on post id and the reaction.
+ - Heart reactions have the value of 'heart' for the reaction column of the facebook_reactions dataset.
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Many entries:** A post can be liked by one of more users","SELECT
+  distinct
+  
+  p.*
+ FROM
+  facebook_posts p
+ INNER JOIN
+  facebook_reactions r 
+ ON
+  p.post_id = r.post_id AND 
+  r.reaction = 'heart'",1,pandas.DataFrame,"- Select specific column/s from dataframe using [column_name] then select rows with values equal to â€˜==â€™ heart
+ - Perform inner join by using df.merge(df2, on = common_table_keys)
+ - Use drop_duplicates(column_name) to get distinct values in the specified column
+ 
+ ### Edge Cases To Consider: 
+ 
+ - **Many entries:** A post can be liked by one of more users","def solution(facebook_reactions,facebook_posts):
+  import pandas as pd
+  import numpy as np
+ 
+  heart = facebook_reactions[facebook_reactions['reaction'] == 'heart'][['post_id']]
+  result = pd.merge(heart,facebook_posts,on='post_id').drop_duplicates(subset = 'post_id')
+  return result"
+Email Details Based On Sends,,2,"- Use an inner query to find the ratio between sent and received emails per day.
+ - Use the COUNT() function with DISTINCT on from_user and to_user columns to count the number of sent and received emails respectively.
+ - Cast values using :: NUMERIC if needed.
+ - Group records by the day.
+ - Use INNER JOIN in an outer query to combine inner query results to the main table on day and the sent to received mail ratio.
+ - The sent to received mail ratio should be less than 1 if the number of sent mails are lower than the number of received mails.","SELECT
+  g.*
+ FROM
+  google_gmail_emails g
+ INNER JOIN
+  (SELECT
+  day,
+  
+  COUNT(distinct from_user) :: NUMERIC / 
+  COUNT(distinct to_user) AS sent_received_ratio
+  FROM
+  google_gmail_emails
+  GROUP BY
+  day) base
+ ON
+  g.day = base.day AND
+  base.sent_received_ratio < 1",2,pandas.DataFrame,"- Use .groupby(column_name) to group the dataframe about the specifed column and use nunique() to get the number of distinct observations per group or specified axis
+ - Create 'sent_received_ratio' column containing the quotient of from_user and to_user
+ - Select specific column/s from dataframe using [column_name] then select rows with values less than ""<"" 1
+ - Perform inner join by using df.merge(df2, on = common_table_keys)","def solution(google_gmail_emails):
+  import pandas as pd
+  import numpy as np
+ 
+  grouped = google_gmail_emails.groupby(['day']).agg({'from_user':'nunique', 'to_user':'nunique'}).reset_index()
+  grouped['sent_received_ratio'] = grouped['from_user']/grouped['to_user']
+  grouped = grouped[grouped['sent_received_ratio'] <1 ][['day']]
+  result = pd.merge(google_gmail_emails,grouped,on='day')
+  return result"
+Meta/Facebook Matching Users Pairs,,2,,"SELECT
+  e1.id AS employee_1,
+  e2.id AS employee_2
+ FROM
+  facebook_employees e1 
+ JOIN
+  facebook_employees e2 
+ ON 
+  e1.location = e2.location AND
+  e1.age <> e2.age AND
+  e1.gender = e2.gender AND
+  e1.is_senior <> e2.is_senior
+ WHERE
+  e1.id IS NOT NULL AND
+  e2.id IS NOT NULL",2,pandas.DataFrame,"- Perform merge by using df.merge(df2, on = common_table_keys, how = 'inner')
+ - notnull() can be used to determine the non-missing values in the dataframe
+ - Select specific column/s from dataframe using [column_name] then select rows with values not equal to â€˜!=â€™ age and seniority
+ - Use AND '&' to check if conditions are satisfied (True)
+ - Use [ [ column_name/s] ] to return a specified column of the dataframe
+ - Use .rename(columns = {'old_name':'new_name'}) to rename specific columns","def solution(facebook_employees):
+  import pandas as pd
+  import numpy as np
+ 
+  not_null = facebook_employees[facebook_employees['id'].notnull()]
+  full_join = not_null.merge(not_null, on=['location', 'gender'], how='inner')
+  full_join = full_join[
+  (full_join['age_x'] != full_join['age_y']) & (full_join['is_senior_x'] != full_join['is_senior_y'])]
+  result = full_join.rename(columns={'id_x': 'employee_1', 'id_y': 'employee_2'})[['employee_1', 'employee_2']]
+  return result"
+Cum Sum Energy Consumption,"-- Calculate the running total (i.e., cumulative sum) energy consumption of the Meta/Facebook data centers in all 3 continents by the date. Output the date, running total energy consumption, and running total percentage rounded to the nearest whole number.",3,"- Use an inner query to return the date and the corresponding total energy consumption without losing any dates.
+ - Use the function SUM() combined with the formula OVER (ORDER BY date ASC) to find the cumulative total consumption.
+ - Get percentage calculation denominator as result of subquery.","WITH total_energy AS (
+  SELECT *
+  FROM fb_eu_energy eu
+  UNION ALL 
+  SELECT *
+  FROM fb_asia_energy asia
+  UNION ALL 
+  SELECT *
+  FROM fb_na_energy na),
+ energy_by_date AS (
+  SELECT date, 
+  sum(consumption) AS total_energy
+  FROM total_energy
+  GROUP BY date
+  ORDER BY date ASC)
+ SELECT date, 
+  SUM(total_energy) OVER (ORDER BY date ASC) AS cumulative_total_energy,
+  ROUND(SUM(total_energy) OVER (ORDER BY date ASC) * 100 / (SELECT sum(total_energy) FROM energy_by_date), 0) AS percentage_of_total_energy
+ FROM energy_by_date",3,pandas.DataFrame,"- Think about which method fits best in this exercise: append, join, merge, concat
+ - Use sum of consumption as an additional column
+ - Use cumsum() to get the cumulative sum
+ - Use [ [column_name] ] to return a specified column of the dataframe
+ - Use to_datetime() to convert timestamp to date format","def solution(fb_eu_energy, fb_na_energy, fb_asia_energy):
+  import pandas as pd
+  import numpy as np
+  import datetime
+ 
+  merged_df = fb_eu_energy.append(fb_na_energy).append(fb_asia_energy)
+ 
+  df = merged_df.groupby('date')['consumption'].sum().reset_index()
+  df['cumulative_total_consumption'] = df['consumption'].cumsum()
+  df['percentage_of_total_consumption'] = round((df['cumulative_total_consumption'] / df['consumption'].sum())*100) 
+  df.drop(""consumption"", axis=1, inplace=True)
+  df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d' ).dt.strftime('%Y-%m-%d')
+  result = df
+  return result"
