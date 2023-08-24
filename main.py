@@ -67,7 +67,7 @@ def handle_user_interaction():
 
 
 def main():
-    st.title("AI Assistant")
+    st.title("Stratascrath Tutor")
     handle_user_interaction()
 
 if __name__ == "__main__":
