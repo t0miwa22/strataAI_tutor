@@ -1,5 +1,4 @@
 # Install and Import Gradio, Pandas, Altair, Matplotlib, Os, and OpenAI (put this in "bot_libs.py" file and import it in one line as "import bot_libs" )
-
 import pandas as pd
 import os
 import openai
@@ -12,7 +11,7 @@ question_df = pd.read_csv('question_df.csv')
 # Tool bot is designed to be the tool-using feature of the chat bot. 
 # During the session it will be a second instance of GPT-3.5 that can use tools
 # This gives pretty consistent behavior
-with open('tool bot sys content.txt', 'r') as file:
+with open('tool_bot_sys_content.txt', 'r') as file:
     tool_bot_sys_content = file.read()
 #----------------------------------------------------------------------------------
 def tool_bot(prompt, history=[]):
@@ -54,8 +53,7 @@ import time
 def html_scraper(url):
 
     # Path to the GeckoDriver executable
-    GECKODRIVER_PATH = 'geckodriver.exe'
-    
+    GECKODRIVER_PATH = 'geckodriver'
     # Initialize the WebDriver
     options = webdriver.FirefoxOptions()
     service = FirefoxService(executable_path=GECKODRIVER_PATH)
@@ -99,48 +97,44 @@ def html_scraper(url):
     # Close the browser
     driver.quit()
     return h1_tag.text
+def process_url(url):
+    question_short = html_scraper(url)
+    print(question_short)
+    
+    # Pulling out the question row
+    question_row = question_df.loc[question_df['question_short'] == question_short]
 
-url = input('url')
-question_short = html_scraper(url)
-print(question_short)
+    # Convert DataFrame to numpy array to list to extract the string objects contained inside
+    hint = question_row['hint'].values.tolist()
+    py_hint = question_row['python_hint'].values.tolist()
+    question = question_row['question'].values.tolist()
+    py_solution = question_row['solution'].values.tolist()
 
-#----------------------------------------------------------------------------------
+    print(f'''{question[0]}
 
-# Pulling out the question row
-question_row = question_df.loc[question_df['question_short'] == question_short]
-# print(question_row)
+    {hint[0]}
 
-# convert DataFrame to numpy array to list in order to extract the string objects contained inside
-hint = question_row['hint'].values.tolist()
-py_hint = question_row['python_hint'].values.tolist()
-question = question_row['question'].values.tolist()
-py_solution = question_row['solution'].values.tolist()
+    {py_hint[0]}
 
-print(f'''{question[0]}
+    {py_solution[0]}
+    ''')
 
-{hint[0]}
+    return question, hint, py_hint, py_solution
 
-{py_hint[0]}
+# Assuming you call the function somewhere and get the values
+# For example: 
+# question, hint, py_hint, py_solution = process_url("some_url_here")
 
-{py_solution[0]}
-''')
-
-#----------------------------------------------------------------------------------
 # The AI Tutor Backend. It has a nested tool_bot function
 # Which will trigger grabbing data from questions database
-with open('ai tutor sys content.txt', 'r') as file:
-    ai_tutor_sys_content = file.read()
-
-
-# # we store the 0 index with an placeholder '' string so that we don't get index error for index being out of range. 
-
-# hint = ['']
-# py_hint = ['']
-# question = ['']
-# py_solution = ['']
+def construct_messages(question, hint, py_hint, py_solution):
+    with open('ai_tutor_sys_content.txt', 'r') as file:
+        ai_tutor_sys_content = file.read()
 
 # Global messages list. The memory of the conversation is stored in this list
-messages =[{"role": "system","content": ai_tutor_sys_content + f'''
+    messages = [{
+    "role": "system",
+    "content": ai_tutor_sys_content + f'''
 Here is the context to consider as you help the student:
 Question: 
 {question[0]}
@@ -152,21 +146,59 @@ Python Hint (code snippet):
 {py_hint[0]}
 
 Solution: 
-{py_solution[0]} '''}]
+{py_solution[0]} 
+'''}
+]
 
 #track index of conversation:
 i = [0]
+#denial_messages = messages #creating a separate history 
 
-load_dotenv()
-def ai_chat(prompt, history):
+def ai_chat(prompt):
+    messages =[]
     # calling messages variable inside the function
-    global messages
+    openai.api_key = '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'
+    global denial_messages
+            
+    tool_response = tool_bot(prompt) #this is another instance of OpenAI (basically another agent) to issue commands
+    print(f'TOOL RESPONSE: {tool_response}')
     
-    # Introduction message
-    
-    #should I start with an assistant message to help the user get started?]#list of messages that get passed in to start convo, will also save messages here
-
-    openai.api_key = os.getenv("OPENAI_API_KEY") ##This isn't working for some reason 
+    # Using tool_bot to analyze conversation and to respond accordingly. 
+    # tool_response is
+    if tool_response == 'OFF TOPIC' or tool_response == 'CAREER ADVICE':
+        print("DENIAL LOGIC ACTIVATED")
+        denial_messages.append({'role': 'user', 'content': f'''This is my prompt:
+        
+        Prompt: """ {prompt} """
+        
+        Kindly tell me to stay on the topic of python and data science and/or to avoid questions about career advice
+        explain to me why my previous prompt was off topic in a sentence or 2.'''})
+        response = openai.ChatCompletion.create(
+             model="gpt-3.5-turbo",
+             messages=denial_messages, #using this message histroy because I don't want to save this to convo history
+             temperature=1, #play with temp to get more factual responses
+             max_tokens=100,
+             top_p=1,
+             frequency_penalty=0,
+             presence_penalty=0
+         )
+        token_count = response['usage']['total_tokens']
+        if token_count >= 3000:
+            denial_messages = [denial_messages[0]]
+        assistant_content = response['choices'][0]['message']['content']
+        # not appending message history
+        return assistant_content 
+        
+        
+ 
+    # tool_dict = {}
+    # for tool in tool_dict:
+    #     if tool_response == tool:
+    #         assistant_content = tool_dict[tool]
+    #         return assistant_content
+    # load_dotenv()     
+    # openai.api_key = os.getenv("OPENAI_API_KEY") ##This isn't working for some reason
+   
     messages.append({'role': 'user', 'content': f'{prompt}'}) #f string to avoid prompt injection errors from user
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -177,9 +209,6 @@ def ai_chat(prompt, history):
         frequency_penalty=0,
         presence_penalty=0
     )
-
-    tool_response = tool_bot(prompt) #this is another instance of OpenAI (basically another agent) to issue commands
-    #initating empty variables for use later:
 
 
     assistant_content = response['choices'][0]['message']['content']
@@ -202,30 +231,5 @@ def ai_chat(prompt, history):
     
     '''
 
-    # Saving content to a text file
-    # Open a file in write mode, 'a' argument serves as appending to
-    with open('saved_chat.txt', 'a') as file:
-        file.write(format_str)
-
-    #add token counter and a way to handle hitting token limit.  
-    # Prob summarizing previous assistant/student info into 2-4 sentences, 3000 tokens is safe place to start summary
-    token_count = response['usage']['total_tokens']
-    if token_count >= 3000:
-        # Reload message history text for summarization. Better formatted than parsing the response JSON
-        # content_txt = Path('saved_chat.txt').read_text() 
-        # summary_str[0] = summarize_bot_saved(content_txt)
-        messages = [messages[0]] # basically erase the memory except the system message and kept it as a list
-        # print(f'This is the `messages` memory: {summary_str}')
-    
-    messages.append(({'role':'assistant', 'content': assistant_content}))
-    absolute_path = os.path.abspath('matt/Most Profitable Companies faq.html')
-    print(absolute_path)
-
-    if i[0] == 0:
-        # assistant_content = f'''<a href="{absolute_path}" target="_blank">Click here</a>'''
-        assistant_content = "Hi there! I am your AI Tutor. Please click the FAQ button to download a list of FAQs for this particular question"
-        i[0] += 1
    
-    
     return assistant_content
-

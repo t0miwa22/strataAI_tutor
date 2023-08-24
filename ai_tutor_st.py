@@ -38,7 +38,7 @@ def get_initial_response(query, request_type, known_question_data=None):
         return "Sorry, I couldn't find the requested information in the dataset."
     if request_type == "Get Walkthrough":
         return known_question_data['python_solution']
-    elif request_type == "Show Edge Cases":
+    elif request_type == "Show Edge Cases":#
         return "Sorry, edge cases are not explicitly mentioned in the dataset. Would you like to get potential edge cases based on the problem?"
     elif request_type == "Explain Solution":
         return known_question_data['python_solution']
@@ -126,7 +126,7 @@ def contains_comprehensive_python_keyword_refined(query):
     query = query.lower()
     return any(keyword in query for keyword in map(str.lower, comprehensive_python_keywords))
 
-def respond_to_query(input_text, dropdown_selection, request_type, further_clarification=False):
+def respond_to_query(input_text, dropdown_selection, request_types, further_clarification, context):
     if input_text and input_text != "Type your question or select from the dropdown.":
         input_query = input_text
     else:
@@ -138,18 +138,19 @@ def respond_to_query(input_text, dropdown_selection, request_type, further_clari
         
         # If further clarification is not sought, get the initial response
         if not further_clarification:
-            return get_initial_response(input_query, request_type, known_question_data=question_data)
+            response = get_initial_response(input_query, request_types, known_question_data=question_data)
         # If further clarification is sought, get a custom response based on the data
         else:
-            return custom_query_response(input_query, request_type, known_question_data=question_data)
+            response = custom_query_response(input_query, request_types, known_question_data=question_data)
     # If the query doesn't exist in the database
     else:
         # Check if the query contains any Python-related keyword
         if contains_comprehensive_python_keyword_refined(input_query):
-            return custom_query_response(input_query, request_type)
+            response = custom_query_response(input_query, request_types)
         else:
-            return f"The question doesn't seem to be related to Python programming. Please provide a more specific Python-related question or choose from the provided options."
-
+            response = f"The question doesn't seem to be related to Python programming. Please provide a more specific Python-related question or choose from the provided options."
+    # Return response formatted in markdown for code
+    return f"```{response}```"
 
 
 
