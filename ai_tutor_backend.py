@@ -157,7 +157,7 @@ i = [0]
 def ai_chat(prompt):
     messages =[]
     # calling messages variable inside the function
-    openai.api_key = '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'
+   # openai.api_key = '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'
     global denial_messages
             
     tool_response = tool_bot(prompt) #this is another instance of OpenAI (basically another agent) to issue commands
