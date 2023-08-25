@@ -6,7 +6,7 @@ from pathlib import Path #read in txt files for clean bot
 
 
 # Load Question DF
-question_df = pd.read_csv('question_df.csv')
+question_df = pd.read_excel('final_updated_cleaned_SS_questions.xlsx')
 
 # Tool bot is designed to be the tool-using feature of the chat bot. 
 # During the session it will be a second instance of GPT-3.5 that can use tools
@@ -69,16 +69,6 @@ def html_scraper(url):
     # Get HTML content
     html_content = driver.page_source
     
-    # # Parse HTML content with Beautiful Soup...used to get all tags and explore data
-    # soup = BeautifulSoup(html_content, 'html.parser')
-    # for tag in soup.find_all(True):
-    #     print(f"Tag: {tag.name}")
-    #     print(f"Attributes: {tag.attrs}")
-    #     content = str(tag.contents).strip()
-    #     print(f"Content: {content[:100]}...") if len(content) > 100 else print(f"Content: {content}")
-    #     print("-" * 50) # Separator line
-    # ... (other code)
-    
     # Get HTML content
     html_content = driver.page_source
     
@@ -97,58 +87,58 @@ def html_scraper(url):
     # Close the browser
     driver.quit()
     return h1_tag.text
-def process_url(url):
+#url = input('url')
+#question_short = html_scraper(url)
+#print(question_short)
+
+def extract_question_details(url):
     question_short = html_scraper(url)
     print(question_short)
     
     # Pulling out the question row
-    question_row = question_df.loc[question_df['question_short'] == question_short]
+    question_row = question_df[question_df['question_short'] == question_short]
 
     # Convert DataFrame to numpy array to list to extract the string objects contained inside
-    hint = question_row['hint'].values.tolist()
-    py_hint = question_row['python_hint'].values.tolist()
-    question = question_row['question'].values.tolist()
-    py_solution = question_row['solution'].values.tolist()
+    # Extract details from the filtered row
+    hint = question_row['hint'].values[0]
+    py_hint = question_row['python_hint'].values[0]
+    question = question_row['question'].values[0]
+    py_solution = question_row['python_solution'].values[0]
 
-    print(f'''{question[0]}
-
-    {hint[0]}
-
-    {py_hint[0]}
-
-    {py_solution[0]}
-    ''')
-
-    return question, hint, py_hint, py_solution
+    # Return the extracted details as a dictionary
+    return {
+        "question": question,
+        "hint": hint,
+        "py_hint": py_hint,
+        "py_solution": py_solution
+    }
 
 # Assuming you call the function somewhere and get the values
 # For example: 
 # question, hint, py_hint, py_solution = process_url("some_url_here")
-
+with open('ai_tutor_sys_content.txt', 'r') as file:
+        ai_tutor_sys_content = file.read()
 # The AI Tutor Backend. It has a nested tool_bot function
 # Which will trigger grabbing data from questions database
-def construct_messages(question, hint, py_hint, py_solution):
-    with open('ai_tutor_sys_content.txt', 'r') as file:
-        ai_tutor_sys_content = file.read()
-
-# Global messages list. The memory of the conversation is stored in this list
-    messages = [{
-    "role": "system",
-    "content": ai_tutor_sys_content + f'''
-Here is the context to consider as you help the student:
-Question: 
-{question[0]}
-
-Hint: 
-{hint[0]}
-
-Python Hint (code snippet):
-{py_hint[0]}
-
-Solution: 
-{py_solution[0]} 
-'''}
-]
+def construct_messages(question, hint, py_hint, py_solution,ai_tutor_sys_content):# Global messages list. The memory of the conversation is stored in this list
+    nemessages = [{
+        "role": "system",
+        "content": ai_tutor_sys_content + f'''
+        Here is the context to consider as you help the student:
+        Question: 
+        {question[0]}
+        
+        Hint: 
+        {hint[0]}
+        
+        Python Hint (code snippet):
+        {py_hint[0]}
+        
+        Solution: 
+        {py_solution[0]}
+        '''
+    }]
+    return construct_messages
 
 #track index of conversation:
 i = [0]
@@ -157,7 +147,7 @@ i = [0]
 def ai_chat(prompt):
     messages =[]
     # calling messages variable inside the function
-   # openai.api_key = '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'
+   
     global denial_messages
             
     tool_response = tool_bot(prompt) #this is another instance of OpenAI (basically another agent) to issue commands
@@ -187,18 +177,11 @@ def ai_chat(prompt):
             denial_messages = [denial_messages[0]]
         assistant_content = response['choices'][0]['message']['content']
         # not appending message history
-        return assistant_content 
+        #return assistant_content 
         
         
  
-    # tool_dict = {}
-    # for tool in tool_dict:
-    #     if tool_response == tool:
-    #         assistant_content = tool_dict[tool]
-    #         return assistant_content
-    # load_dotenv()     
-    # openai.api_key = os.getenv("OPENAI_API_KEY") ##This isn't working for some reason
-   
+
     messages.append({'role': 'user', 'content': f'{prompt}'}) #f string to avoid prompt injection errors from user
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",

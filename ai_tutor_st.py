@@ -126,7 +126,7 @@ def contains_comprehensive_python_keyword_refined(query):
     query = query.lower()
     return any(keyword in query for keyword in map(str.lower, comprehensive_python_keywords))
 
-def respond_to_query(input_text, dropdown_selection, request_types, further_clarification, context):
+def respond_to_query(input_text, dropdown_selection, request_types, further_clarification):
     if input_text and input_text != "Type your question or select from the dropdown.":
         input_query = input_text
     else:

@@ -13,10 +13,10 @@ import sqlite3
 
 warnings.filterwarnings("ignore")
 
-from ai_tutor_backend import tool_bot, html_scraper, ai_chat, process_url
+from ai_tutor_backend import tool_bot, html_scraper, ai_chat
 #from db_handler import create_tables, insert_message, get_chat_history, close_connection
 
-openai.api_key = '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'
+openai.api_key = os.environ.get('OPENAI_KEY')
 
 data = pd.read_excel(r'final_updated_cleaned_SS_questions.xlsx')
 faq = pd.read_excel(r'ai_tutor_faqs.xlsx')
@@ -115,7 +115,7 @@ def custom_query_response(query, request_type, known_question_data=None):
     response = ai_chat(prompt)
     return response
 
-def respond_to_query(input_text, dropdown_selection, request_types, further_clarification, context, url_input=None):
+def respond_to_query(input_text, dropdown_selection, request_types, further_clarification,url_input=None):
     if input_text and input_text != "Type your question or select from the dropdown.":
         input_query = input_text
     else:
@@ -136,9 +136,7 @@ def respond_to_query(input_text, dropdown_selection, request_types, further_clar
         # If further clarification is sought, get a custom response based on the data
         else:
             response = custom_query_response(input_query, request_types, known_question_data=question_data)
-    elif url_input:  # If a URL is provided, process it
-        # Here, you can add logic to process the URL and generate a response based on its content
-        response = process_url(url_input)
+    
     else:
         response = "The question doesn't seem to be related to Python programming. Please provide a more specific Python-related question, choose from the provided options, or provide a relevant URL for context."
     
@@ -163,7 +161,7 @@ def handle_user_interaction():
     user_input = st.chat_input("How can I help?")
     
     # URL input for context understanding
-    url_input = st.text_input("Provide the url of the question:", "")
+    #url_input = st.text_input("Provide the url of the question:", "")
     
     # Display FAQ options
     faq_options = ["Select from common questions"] + faq['FAQs'].head(7).tolist()
@@ -187,33 +185,25 @@ def handle_user_interaction():
     
     # If user provides input
     if user_input or dropdown_selection != "Select from common questions":
-        # Display user's input
-        with st.chat_message("user"):
-            st.markdown(user_input if user_input else dropdown_selection)
+        # Add user's input to session state
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_input if user_input else dropdown_selection })
+        response = respond_to_query(user_input, dropdown_selection, selected_request_types, further_clarification)
         
-        # Generate AI response based on user input, dropdown selection, and checkbox selections
-        context = "No context provided."  # You can modify this if you have any context to provide
-        if url_input:
-            try:
-                question, hint, py_hint, py_solution = process_url(url_input)
-                context = f"Question: {question[0]}, Hint: {hint[0]}, Python Hint: {py_hint[0]}, Solution: {py_solution[0]}"
-            except Exception as e:
-                st.error(f"Error processing URL: {e}")
-                return
-
-        response = respond_to_query(user_input, dropdown_selection, selected_request_types, further_clarification, context, url_input)
-        
-        # Display AI's response
-        with st.chat_message("assistant"):
-            st.markdown(response)
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": response
+        })
 
 def main():
-    st.title('Stratascratch Tutor')
-    handle_user_interaction()
+    st.image('img.png',use_column_width=True)
 
     # Initialize session state for messages
     if "messages" not in st.session_state:
         st.session_state.messages = []
+
+    handle_user_interaction()
 
     # Display chat history
     for message in st.session_state.messages:
