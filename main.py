@@ -13,10 +13,10 @@ import sqlite3
 
 warnings.filterwarnings("ignore")
 
-from ai_tutor_backend import tool_bot, html_scraper, ai_chat, process_url
+from ai_tutor_backend import tool_bot, html_scraper, ai_chat
 #from db_handler import create_tables, insert_message, get_chat_history, close_connection
 
-openai.api_key = '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'
+openai.api_key = os.environ.get('OPENAI_KEY')
 
 data = pd.read_excel(r'final_updated_cleaned_SS_questions.xlsx')
 faq = pd.read_excel(r'ai_tutor_faqs.xlsx')
@@ -115,7 +115,7 @@ def custom_query_response(query, request_type, known_question_data=None):
     response = ai_chat(prompt)
     return response
 
-def respond_to_query(input_text, dropdown_selection, request_types, further_clarification, context, url_input=None):
+def respond_to_query(input_text, dropdown_selection, request_types, further_clarification,url_input=None):
     if input_text and input_text != "Type your question or select from the dropdown.":
         input_query = input_text
     else:
@@ -136,9 +136,7 @@ def respond_to_query(input_text, dropdown_selection, request_types, further_clar
         # If further clarification is sought, get a custom response based on the data
         else:
             response = custom_query_response(input_query, request_types, known_question_data=question_data)
-    elif url_input:  # If a URL is provided, process it
-        # Here, you can add logic to process the URL and generate a response based on its content
-        response = process_url(url_input)
+    
     else:
         response = "The question doesn't seem to be related to Python programming. Please provide a more specific Python-related question, choose from the provided options, or provide a relevant URL for context."
     
@@ -158,29 +156,24 @@ def find_question_in_database(user_question):
         if pd.notna(db_question) and user_question.lower() in db_question.lower():
             return row
     return None
-def main():
-    # Initialize session state for messages
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
+def handle_user_interaction():
+    # Get user input
+    user_input = st.chat_input("How can I help?")
+    
     # URL input for context understanding
-    url_input = st.text_input("Provide the url of the question:", "")
-
+    #url_input = st.text_input("Provide the url of the question:", "")
+    
     # Display FAQ options
     faq_options = ["Select from common questions"] + faq['FAQs'].head(7).tolist()
     dropdown_selection = st.selectbox("Select FAQ:", faq_options)
-
-    # User input options
-    user_input = st.chat_input("Type your question or select from the dropdown.")
     
     # Checkboxes for additional info
     col1, col2, col3 = st.columns(3)
     get_walkthrough = col1.checkbox("Get Walkthrough")
     show_edge_cases = col2.checkbox("Show Edge Cases")
     explain_solution = col3.checkbox("Explain Solution")
-
     further_clarification = st.checkbox("Seek further clarification?")
-
+    
     # Process checkboxes
     selected_request_types = []
     if get_walkthrough:
@@ -189,45 +182,33 @@ def main():
         selected_request_types.append("Show Edge Cases")
     if explain_solution:
         selected_request_types.append("Explain Solution")
+    
+    # If user provides input
+    if user_input or dropdown_selection != "Select from common questions":
+        # Add user's input to session state
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_input if user_input else dropdown_selection })
+        response = respond_to_query(user_input, dropdown_selection, selected_request_types, further_clarification)
+        
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": response
+        })
 
-    # Process User Input & Display Responses
-    if st.button("Submit"):
-        if dropdown_selection == "Select from common questions" and not user_input:
-            st.warning("Please type your question or select a valid option from the dropdown.")
-            return
+def main():
+    st.image('img.png',use_column_width=True)
 
-        context = "No context provided."
-        if url_input:
-            try:
-                question, hint, py_hint, py_solution = process_url(url_input)
-                context = f"Question: {question[0]}, Hint: {hint[0]}, Python Hint: {py_hint[0]}, Solution: {py_solution[0]}"
-            except Exception as e:
-                st.error(f"Error processing URL: {e}")
-                return
+    # Initialize session state for messages
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-        try:
-            response = respond_to_query(user_input, dropdown_selection, selected_request_types, further_clarification, context)
-            if not response:
-                response = ai_chat(user_input if user_input else dropdown_selection)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-        except Exception as e:
-            st.error(f"Error generating response: {e}")
-            return
+    handle_user_interaction()
 
     # Display chat history
-    # Display assistant response in chat message container
-        with st.chat_message("assistant"):
-            st.markdown(response)
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
-    st.markdown("---")
-
-    if prompt := st.chat_input("How can I help?"):
-        with st.chat_message("user"):
-            st.markdown(prompt)
-            st.session_state.messages.append({"role": "user", "content": prompt})
-
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
 if __name__ == "__main__":
     main()
-
