@@ -114,6 +114,10 @@ def custom_query_response(query, request_type, known_question_data=None):
     
     response = ai_chat(prompt)
     return response
+def classify_question(query):
+    """Classify the query using the tool_bot."""
+    response = tool_bot(query)
+    return response
 
 def respond_to_query(input_text, dropdown_selection, request_types, further_clarification,url_input=None):
     if input_text and input_text != "Type your question or select from the dropdown.":
@@ -121,7 +125,6 @@ def respond_to_query(input_text, dropdown_selection, request_types, further_clar
     else:
         input_query = dropdown_selection
     
-    response = ""  # Initialize the response
 
     # Check if the query contains any Python-related keyword
     if contains_comprehensive_python_keyword_refined(input_query):
