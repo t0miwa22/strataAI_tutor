@@ -87,9 +87,9 @@ def html_scraper(url):
     # Close the browser
     driver.quit()
     return h1_tag.text
-#url = input('url')
-#question_short = html_scraper(url)
-#print(question_short)
+url = input('url')
+question_short = html_scraper(url)
+print(question_short)
 
 def extract_question_details(url):
     question_short = html_scraper(url)
@@ -120,8 +120,9 @@ with open('ai_tutor_sys_content.txt', 'r') as file:
         ai_tutor_sys_content = file.read()
 # The AI Tutor Backend. It has a nested tool_bot function
 # Which will trigger grabbing data from questions database
-def construct_messages(question, hint, py_hint, py_solution,ai_tutor_sys_content):# Global messages list. The memory of the conversation is stored in this list
-    nemessages = [{
+def construct_messages(question, hint, py_hint, py_solution, ai_tutor_sys_content):
+    global messages  # declare messages as global
+    messages = [{
         "role": "system",
         "content": ai_tutor_sys_content + f'''
         Here is the context to consider as you help the student:
@@ -138,7 +139,7 @@ def construct_messages(question, hint, py_hint, py_solution,ai_tutor_sys_content
         {py_solution[0]}
         '''
     }]
-    return construct_messages
+
 
 #track index of conversation:
 i = [0]
@@ -176,8 +177,8 @@ def ai_chat(prompt):
         if token_count >= 3000:
             denial_messages = [denial_messages[0]]
         assistant_content = response['choices'][0]['message']['content']
-        # not appending message history
-        #return assistant_content 
+         #not appending message history
+        return assistant_content 
         
         
  
@@ -198,13 +199,14 @@ def ai_chat(prompt):
     # hint = '' #this is parsing the json file that is the response reponse. you take the first item in choices list (a list of dictionaries), go to message key, and then go to content key 
     
     #print this in the CLI or notebook. This helps with understanding how the response json is structured for further customization
-    print(f'''
+    #print(
+    f'''
     
-    MESSAGE: {messages}
+    #MESSAGE: {messages}
     
-    RESPONSE:{response}
+    #RESPONSE:{response}
     
-    ''')
+    #'''
     
     # Saving as variable to store the conversation history
     format_str = f'''
